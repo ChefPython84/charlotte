@@ -1,0 +1,25 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Catalogue des Salles{% endblock %}
+
+{% block body %}
+<h1>Catalogue des Salles</h1>
+
+<div style="display:flex; flex-wrap: wrap; gap: 20px;">
+    {% for venue in venues %}
+        <div style="border:1px solid #ccc; padding:10px; width:300px;">
+            {% if venue.pictures is not empty %}
+                <img src="{{ venue.pictures[0] }}" alt="{{ venue.name }}" style="width:100%; height:auto;">
+            {% endif %}
+            <h2>{{ venue.name }}</h2>
+            <p><strong>Ville :</strong> {{ venue.municipality.name }}</p>
+            <p><strong>Adresse :</strong> {{ venue.address }}</p>
+            <p><strong>Capacité :</strong> {{ venue.capacity }} personnes</p>
+            <p><strong>Prix :</strong> {{ venue.price }} €</p>
+            <a href="{{ path('venue_show', {id: venue.id}) }}">Voir détails / Réserver</a>
+        </div>
+    {% else %}
+        <p>Aucune salle disponible pour le moment.</p>
+    {% endfor %}
+</div>
+{% endblock %}
