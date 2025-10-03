@@ -1,0 +1,25 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Ajouter un avis - {{ salle.nom }}{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <h2>Donner un avis sur {{ salle.nom }}</h2>
+
+    {{ form_start(form) }}
+        <div class="mb-3">
+            {{ form_label(form.note) }}
+            {{ form_widget(form.note, {'attr': {'class': 'form-control'}}) }}
+            {{ form_errors(form.note) }}
+        </div>
+
+        <div class="mb-3">
+            {{ form_label(form.commentaire) }}
+            {{ form_widget(form.commentaire, {'attr': {'class': 'form-control'}}) }}
+            {{ form_errors(form.commentaire) }}
+        </div>
+
+        <button class="btn btn-success">Envoyer</button>
+    {{ form_end(form) }}
+</div>
+{% endblock %}

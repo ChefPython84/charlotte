@@ -1,0 +1,10 @@
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">{{ user.nom }} {{ user.prenom }}</h5>
+        <p><strong>Email:</strong> {{ user.email }}</p>
+        <p><strong>Téléphone:</strong> {{ user.telephone ?: '—' }}</p>
+        <p><strong>Rôle:</strong> {{ user.role }}</p>
+        <p><strong>Date inscription:</strong> {{ user.dateInscription|date('d/m/Y H:i') }}</p>
+        {# Ne pas afficher user.motDePasse #}
+    </div>
+</div>

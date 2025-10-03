@@ -1,0 +1,36 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Toutes les salles{% endblock %}
+
+{% block body %}
+<div class="container py-4">
+    <h1 class="mb-4 fw-bold text-center">Découvrez nos salles</h1>
+
+    <div class="row g-4">
+        {% for salle in salles %}
+        <div class="col-md-4">
+            <div class="card border-0 shadow-lg h-100 rounded-4 overflow-hidden hover-scale">
+                {% if salle.photos|length > 0 %}
+                <img src="{{ salle.photos|first.url }}" class="card-img-top" alt="Photo {{ salle.nom }}">
+                {% endif %}
+                <div class="card-body">
+                    <h5 class="card-title fw-bold text-primary">{{ salle.nom }}</h5>
+                    <p class="card-text text-muted small">{{ salle.description|slice(0, 80) ~ '...' }}</p>
+                    <ul class="list-unstyled small">
+                        <li><i class="bi bi-people-fill me-1 text-primary"></i> {{ salle.capacite }} personnes</li>
+                        <li><i class="bi bi-cash-coin me-1 text-success"></i> {{ salle.prixJour }} € / jour</li>
+                        <li><i class="bi bi-geo-alt-fill me-1 text-danger"></i> {{ salle.ville }}</li>
+                    </ul>
+                </div>
+                <div class="card-footer bg-white border-0 text-center pb-3">
+                    <a href="{{ path('salle_show', {id: salle.id}) }}" class="btn btn-gradient rounded-pill px-4">Voir détails</a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-center text-muted">Aucune salle disponible pour le moment.</p>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}

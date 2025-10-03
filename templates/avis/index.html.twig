@@ -1,0 +1,34 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Avis — {{ salle.nom }}{% endblock %}
+
+{% block body %}
+<div class="container py-4">
+  <h1 class="mb-4">Avis pour {{ salle.nom }}</h1>
+
+  {% for avis in salle.avis %}
+    <div class="card mb-3 rounded-4 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <div>
+            <strong>{{ avis.user.prenom }} {{ avis.user.nom }}</strong><br>
+            <span class="text-muted small">{{ avis.dateAvis|date('d/m/Y') }}</span>
+          </div>
+          <div>
+            {% for i in 1..5 %}
+              {% if i <= avis.note %}
+                ⭐
+              {% else %}
+                ☆
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        <p class="mt-2">{{ avis.commentaire }}</p>
+      </div>
+    </div>
+  {% else %}
+    <p class="text-muted">Pas encore d’avis.</p>
+  {% endfor %}
+</div>
+{% endblock %}

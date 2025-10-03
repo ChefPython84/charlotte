@@ -1,0 +1,21 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Facture #{{ facture.id }}{% endblock %}
+
+{% block body %}
+<div class="container py-4">
+  <div class="card shadow-sm rounded-4">
+    <div class="card-body">
+      <h2>Facture #{{ facture.id }}</h2>
+      <p><strong>Date :</strong> {{ facture.dateFacture|date('d/m/Y') }}</p>
+      <p><strong>Salle :</strong> {{ facture.reservation.salle.nom }}</p>
+      <p><strong>Montant :</strong> {{ facture.montant }} €</p>
+      <p><strong>Statut :</strong> 
+        <span class="badge {% if facture.statut == 'payée' %}bg-success{% else %}bg-warning{% endif %}">
+          {{ facture.statut }}
+        </span>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

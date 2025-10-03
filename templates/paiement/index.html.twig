@@ -1,0 +1,39 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Mes Paiements{% endblock %}
+
+{% block body %}
+<div class="container py-4">
+  <h1 class="mb-4">Mes Paiements</h1>
+  <table class="table table-striped align-middle">
+    <thead class="table-dark">
+      <tr>
+        <th>#</th>
+        <th>Facture</th>
+        <th>Date</th>
+        <th>Montant</th>
+        <th>Méthode</th>
+        <th>Statut</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for paiement in paiements %}
+        <tr>
+          <td>{{ paiement.id }}</td>
+          <td>#{{ paiement.facture.id }}</td>
+          <td>{{ paiement.datePaiement|date('d/m/Y H:i') }}</td>
+          <td>{{ paiement.montant }} €</td>
+          <td>{{ paiement.methode }}</td>
+          <td>
+            <span class="badge {% if paiement.statut == 'réussi' %}bg-success{% elseif paiement.statut == 'échoué' %}bg-danger{% else %}bg-secondary{% endif %}">
+              {{ paiement.statut }}
+            </span>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="text-muted text-center">Aucun paiement</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

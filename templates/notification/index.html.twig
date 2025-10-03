@@ -1,0 +1,45 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Mes Notifications{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <h2 class="mb-4">📩 Mes Notifications</h2>
+
+    <table class="table table-hover shadow-sm rounded">
+        <thead class="table-dark">
+            <tr>
+                <th>Message</th>
+                <th>Date</th>
+                <th>Statut</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for notif in notifications %}
+                <tr class="{{ notif.estLu ? '' : 'table-warning' }}">
+                    <td>{{ notif.message }}</td>
+                    <td>{{ notif.dateEnvoi|date('d/m/Y H:i') }}</td>
+                    <td>
+                        {% if notif.estLu %}
+                            <span class="badge bg-success">Lu</span>
+                        {% else %}
+                            <span class="badge bg-danger">Non lu</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not notif.estLu %}
+                            <a href="{{ path('app_notification_mark_read', {id: notif.id}) }}" 
+                               class="btn btn-sm btn-outline-primary">Marquer comme lu</a>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted">Aucune notification</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

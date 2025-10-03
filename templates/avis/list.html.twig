@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Avis - {{ salle.nom }}{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <h2>Avis pour {{ salle.nom }}</h2>
+
+    <p class="text-muted">Note moyenne : ⭐ {{ noteMoyenne ? noteMoyenne|number_format(1) : 'Aucune' }}/5</p>
+
+    <a href="{{ path('app_avis_ajouter', {id: salle.id}) }}" class="btn btn-primary mb-3">
+        ➕ Laisser un avis
+    </a>
+
+    <div class="list-group shadow-sm">
+        {% for a in avis %}
+            <div class="list-group-item">
+                <strong>{{ a.user.prenom }} {{ a.user.nom }}</strong>
+                <span class="badge bg-warning text-dark">⭐ {{ a.note }}/5</span>
+                <p class="mt-2">{{ a.commentaire }}</p>
+                <small class="text-muted">{{ a.dateAvis|date('d/m/Y H:i') }}</small>
+            </div>
+        {% else %}
+            <div class="alert alert-info">Aucun avis pour cette salle</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

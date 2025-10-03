@@ -1,41 +1,32 @@
-import './bootstrap.js';
-/*
- * Welcome to your app's main JavaScript file!
- *
- * This file will be included onto the page via the importmap() Twig function,
- * which should already be in your base.html.twig.
- */
-import './styles/app.css'
+import 'bootstrap/dist/css/bootstrap.min.css';
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 
 
-import './bootstrap.js';
-import './styles/app.css';
-import './styles/fullcalendar.css';
+fetch(`/salle/${salleId}/reservation/new?start=${info.startStr}&end=${info.endStr}`, { 
+    headers: { 'X-Requested-With':'XMLHttpRequest' }
+})
+.then(r => r.text())
+.then(html => {
+    document.getElementById('reservationModalContent').innerHTML = html;
 
-import { Calendar } from '@fullcalendar/core';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import bootstrap5Plugin from '@fullcalendar/bootstrap';
-
-document.addEventListener('DOMContentLoaded', () => {
-    const calendarEl = document.getElementById('calendar');
-    if (!calendarEl) return;
-
-    const calendar = new Calendar(calendarEl, {
-        plugins: [dayGridPlugin, interactionPlugin, bootstrap5Plugin],
-        initialView: 'dayGridMonth',
-        themeSystem: 'bootstrap5',
-        selectable: true,
-        editable: false,
-        events: [
-            { title: 'Réservé', start: '2025-09-05' },
-            { title: 'Anniversaire', start: '2025-09-10', end: '2025-09-12' }
-        ],
+    const form = document.getElementById('reservation-form');
+    form.addEventListener('submit', function(e){
+        e.preventDefault();
+        const fd = new FormData(form);
+        fetch(form.action, {
+            method: 'POST',
+            headers: { 'X-Requested-With':'XMLHttpRequest' },
+            body: fd
+        })
+        .then(r => r.json())
+        .then(json => {
+            if(json.success){
+                modal.hide();
+                calendar.refetchEvents();
+                alert('Réservation enregistrée');
+            } else {
+                alert(json.message || 'Erreur');
+            }
+        });
     });
-
-    calendar.render();
 });
-
-
-
-console.log('This log comes from assets/app.js - welcome to AssetMapper! 🎉')

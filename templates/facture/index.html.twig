@@ -1,0 +1,41 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Mes Factures{% endblock %}
+
+{% block body %}
+<div class="container py-4">
+  <h1 class="mb-4">Mes Factures</h1>
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>#</th>
+        <th>Réservation</th>
+        <th>Date</th>
+        <th>Montant</th>
+        <th>Statut</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for facture in factures %}
+        <tr>
+          <td>{{ facture.id }}</td>
+          <td>{{ facture.reservation.salle.nom }}</td>
+          <td>{{ facture.dateFacture|date('d/m/Y') }}</td>
+          <td>{{ facture.montant }} €</td>
+          <td>
+            <span class="badge {% if facture.statut == 'payée' %}bg-success{% else %}bg-warning{% endif %}">
+              {{ facture.statut }}
+            </span>
+          </td>
+          <td>
+            <a href="{{ path('facture_show', {id: facture.id}) }}" class="btn btn-sm btn-outline-primary rounded-pill">Voir</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="text-muted text-center">Aucune facture</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,20 +1,182 @@
+{# templates/home/index.html.twig #}
 {% extends 'base.html.twig' %}
 
-{% block title %}Hello HomeController!{% endblock %}
+{% block title %}Trouver une salle — Espace 1500{% endblock %}
 
 {% block body %}
-<style>
-    .example-wrapper { margin: 1em auto; max-width: 800px; width: 95%; font: 18px/1.5 sans-serif; }
-    .example-wrapper code { background: #F5F5F5; padding: 2px 6px; }
-</style>
+<div class="container my-5">
 
-<div class="example-wrapper">
-    <h1>Hello {{ controller_name }}! ✅</h1>
+    {# HERO / Search bar #}
+    <div class="row align-items-center mb-4">
+        <div class="col-lg-8">
+            <h1 class="display-5 fw-bold">Réservez un espace pour votre événement</h1>
+            <p class="lead text-muted">Salles modulables pour conférences, spectacles, salons — trouvez la salle idéale à Ambérieu-en-Bugey.</p>
 
-    This friendly message is coming from:
-    <ul>
-        <li>Your controller at <code><a href="{{ '/Users/henrique/Documents/apps/lab/exercice-symfony/src/Controller/HomeController.php'|file_link(0) }}">src/Controller/HomeController.php</a></code></li>
-        <li>Your template at <code><a href="{{ '/Users/henrique/Documents/apps/lab/exercice-symfony/templates/home/index.html.twig'|file_link(0) }}">templates/home/index.html.twig</a></code></li>
-    </ul>
+            <form method="get" action="{{ path('home') }}" class="row g-2">
+                <div class="col-md-6">
+                    <input name="q" value="{{ q }}" type="search" class="form-control form-control-lg" placeholder="Rechercher (nom, description...)">
+                </div>
+                <div class="col-md-3">
+                    <input name="ville" value="{{ ville }}" type="text" class="form-control form-control-lg" placeholder="Ville (ex : Ambérieu)">
+                </div>
+                <div class="col-md-3 d-grid">
+                    <button class="btn btn-primary btn-lg" type="submit">Rechercher</button>
+                </div>
+
+                <div class="col-12 mt-2">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <select name="capacite" class="form-select">
+                                <option value="0" {% if capacite == 0 %}selected{% endif %}>Capacité</option>
+                                <option value="20" {% if capacite == 20 %}selected{% endif %}>≥ 20</option>
+                                <option value="50" {% if capacite == 50 %}selected{% endif %}>≥ 50</option>
+                                <option value="100" {% if capacite == 100 %}selected{% endif %}>≥ 100</option>
+                                <option value="200" {% if capacite == 200 %}selected{% endif %}>≥ 200</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <input name="prix_max" value="{{ prixMax }}" type="number" step="0.01" class="form-control" placeholder="Prix max / jour">
+                        </div>
+                        <div class="col-md-3">
+                            <select name="sort" class="form-select">
+                                <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Tri : récents</option>
+                                <option value="prix_asc" {% if sort == 'prix_asc' %}selected{% endif %}>Tri : prix ↑</option>
+                                <option value="prix_desc" {% if sort == 'prix_desc' %}selected{% endif %}>Tri : prix ↓</option>
+                                <option value="capacite" {% if sort == 'capacite' %}selected{% endif %}>Tri : capacité</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-grid">
+                            <a href="{{ path('home') }}" class="btn btn-outline-secondary">Réinitialiser</a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-lg-4 d-none d-lg-block">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Informations</h5>
+                    <p class="mb-1"><strong>{{ totalSalles }}</strong> salles</p>
+                    <p class="mb-1"><strong>{{ totalReservations }}</strong> réservations</p>
+                    <p class="mb-0"><strong>{{ totalUsers }}</strong> utilisateurs</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Featured carousel (simple) #}
+    {% if featured is not empty %}
+    <div id="featuredCarousel" class="carousel slide mb-4" data-bs-ride="carousel">
+      <div class="carousel-inner">
+        {% for s in featured %}
+          <div class="carousel-item {% if loop.first %}active{% endif %}">
+            {% set photo = (s.photos|first) %}
+            <img src="{{ photo ? photo.getUrl() : '/build/placeholder-room.png' }}" class="d-block w-100" alt="{{ s.nom }}" style="height:340px; object-fit:cover;">
+            <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded px-2 py-1">
+              <h5>{{ s.nom }}</h5>
+              <p class="mb-0 text-truncate">{{ s.description|striptags|slice(0,120) ~ (s.description|length > 120 ? '...' : '') }}</p>
+              <a href="{{ path('salle_show', {'id': s.id}) }}" class="btn btn-sm btn-light mt-2">Voir la salle</a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      <button class="carousel-control-prev" type="button" data-bs-target="#featuredCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Précédent</span>
+      </button>
+      <button class="carousel-control-next" type="button" data-bs-target="#featuredCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Suivant</span>
+      </button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-3 mb-4">
+            {# Sidebar filtres rapides #}
+            <div class="card sticky-top" style="top:20px;">
+                <div class="card-body">
+                    <h6 class="card-title">Filtres rapides</h6>
+                    <form method="get" action="{{ path('home') }}">
+                        <div class="mb-2">
+                            <label class="form-label small">Ville</label>
+                            <input type="text" name="ville" value="{{ ville }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Capacité min.</label>
+                            <select name="capacite" class="form-select form-select-sm">
+                                <option value="0" {% if capacite == 0 %}selected{% endif %}>Aucune</option>
+                                <option value="20" {% if capacite == 20 %}selected{% endif %}>20</option>
+                                <option value="50" {% if capacite == 50 %}selected{% endif %}>50</option>
+                                <option value="100" {% if capacite == 100 %}selected{% endif %}>100</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small">Prix max / jour</label>
+                            <input type="number" step="0.01" name="prix_max" value="{{ prixMax }}" class="form-control form-control-sm">
+                        </div>
+                        <div class="d-grid">
+                            <button class="btn btn-primary btn-sm">Appliquer</button>
+                        </div>
+                    </form>
+
+                    <hr>
+
+                    <h6 class="small mb-1">Autres</h6>
+                    <ul class="list-unstyled small">
+                        <li>Forfait son & lumière disponible</li>
+                        <li>Agent de sécurité possible</li>
+                        <li>Vacations : 08-13 / 14-19 / 20-24 / 00-03</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-9">
+            <div class="row g-3">
+                {% if salles is empty %}
+                    <div class="col-12">
+                        <div class="alert alert-warning">Aucune salle trouvée pour ces critères.</div>
+                    </div>
+                {% endif %}
+
+                {% for salle in salles %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 shadow-sm">
+                            {% set photo = salle.photos|first %}
+                            <img src="{{ photo ? photo.getUrl() : '/build/placeholder-room.png' }}" class="card-img-top" alt="{{ salle.nom }}" style="height:180px; object-fit:cover;">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title mb-1">{{ salle.nom }}</h5>
+                                <small class="text-muted mb-2">{{ salle.ville }} · Capacité : {{ salle.capacite }}</small>
+
+                                <p class="card-text text-truncate mb-2" style="min-height:42px;">{{ salle.description|striptags|slice(0,120) ~ (salle.description|length > 120 ? '...' : '') }}</p>
+
+                                <div class="mt-auto d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="fw-semibold">{{ salle.prixJour ? (salle.prixJour ~ '€ / jour') : '-' }}</span>
+                                        <div class="small text-muted">à partir de</div>
+                                    </div>
+                                    <div class="text-end">
+                                        <a href="{{ path('salle_show', {'id': salle.id}) }}" class="btn btn-sm btn-outline-primary">Voir</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer small text-muted d-flex justify-content-between">
+                                <span class="badge bg-{{ salle.statut == 'disponible' ? 'success' : 'secondary' }}">{{ salle.statut|capitalize }}</span>
+                                <span>{{ salle.getReservations ? salle.getReservations|length : 0 }} réservations</span>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
 </div>
+
+{# Optionnel : léger JS pour interactions (bootstrap requiert popper+js, supposé déjà présent) #}
+<script>
+    // nothing heavy here — carousel auto handled by bootstrap if js present
+</script>
 {% endblock %}
