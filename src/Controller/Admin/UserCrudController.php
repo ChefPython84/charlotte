@@ -4,12 +4,11 @@ namespace App\Controller\Admin;
 
 use App\Entity\User;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
+use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\EmailField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
-use EasyCorp\Bundle\EasyAdminBundle\Field\EmailField;
-use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
-use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
-use EasyCorp\Bundle\EasyAdminBundle\Field\ArrayField;
 
 class UserCrudController extends AbstractCrudController
 {
@@ -20,22 +19,31 @@ class UserCrudController extends AbstractCrudController
 
     public function configureFields(string $pageName): iterable
     {
-        // adapte selon les propriétés de ton entité User
         yield IdField::new('id')->onlyOnIndex();
         yield TextField::new('nom');
         yield TextField::new('prenom');
         yield EmailField::new('email');
-        yield TextField::new('telephone')->onlyOnForms();
-        // tu stockes un seul role en string -> afficher tel quel
-        yield TextField::new('role')->onlyOnIndex();
-        yield ChoiceField::new('role')
+        yield TextField::new('telephone')->onlyOnForms()->hideOnIndex();
+
+        // Afficher le rôle actuel sur l'index
+        yield TextField::new('role', 'Rôle')->onlyOnIndex();
+
+        // MODIFIÉ : Utilise les constantes de l'entité User
+        yield ChoiceField::new('role', 'Rôle')
             ->setChoices([
-                'Client' => 'ROLE_CLIENT',
-                'Gestionnaire' => 'ROLE_GESTIONNAIRE',
-                'Administrateur' => 'ROLE_ADMIN',
+                'Client' => User::ROLE_CLIENT,
+                'Gestionnaire' => User::ROLE_GESTIONNAIRE,
+                'Mairie' => User::ROLE_MAIRIE, // NOUVELLE OPTION
+                'Administrateur' => User::ROLE_ADMIN,
             ])
-            ->onlyOnForms();
+            ->onlyOnForms(); // Affiché seulement dans les formulaires 'new' et 'edit'
+
         yield DateTimeField::new('dateInscription')->onlyOnIndex();
-        // si tu veux afficher d'autres champs (siret, commune...) ajoute-les ici
+        
+        // J'ajoute vos champs spécifiques (ils étaient dans mon historique)
+        yield TextField::new('typeOrganisateur')->hideOnIndex();
+        yield TextField::new('siret')->hideOnIndex();
+        yield TextField::new('rna')->hideOnIndex();
+        yield TextField::new('commune')->hideOnIndex();
     }
 }

@@ -1,0 +1,215 @@
+{# templates/contrat_tunnel/show.html.twig #}
+{% extends 'base.html.twig' %}
+
+{% block title %}Espace Contrat - Réservation #{{ reservation.id }}{% endblock %}
+
+{% block body %}
+<div class="container py-5">
+    
+    {# En-tête avec les infos principales #}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3">Espace Contrat - Réservation #{{ reservation.id }}</h1>
+            <p class="text-muted mb-0">
+                Salle : <strong>{{ reservation.salle.nom }}</strong> | 
+                Dates : du {{ reservation.dateDebut|date('d/m/Y H:i') }} au {{ reservation.dateFin|date('d/m/Y H:i') }}
+            </p>
+        </div>
+        <div>
+            {# Affiche le statut actuel de manière visible #}
+            <span class="badge fs-6 
+                {% if reservation.statut == 'annulee' %} bg-danger
+                {% elseif reservation.statut == 'contrat_signe' %} bg-success
+                {% elseif reservation.statut == 'contrat_genere' %} bg-primary
+                {% elseif reservation.statut starts with 'attente_validation' %} bg-warning text-dark
+                {% elseif reservation.statut == 'attente_dossier_client' %} bg-info text-dark
+                {% else %} bg-secondary {% endif %}">
+                {{ reservation.statut|replace({'_': ' '})|capitalize }}
+            </span>
+        </div>
+    </div>
+
+    {# Affiche les messages flash (succès, erreur) #}
+    {% include '_partials/_flash_messages.html.twig' %}
+
+    <hr class="my-4">
+
+    <div class="row g-4">
+        
+        {# Colonne de gauche : Formulaire ou Message d'état #}
+        <div class="col-md-7">
+            {# Affiche le formulaire si un formulaire est passé par le contrôleur #}
+            {% if form %}
+                
+                <h2 class="h5 mb-3">
+                    {% if reservation.statut == 'attente_dossier_client' %}
+                        Veuillez compléter votre dossier
+                    {% elseif reservation.statut == 'attente_validation_mairie' %}
+                        Validation requise (Partie Mairie)
+                    {% elseif reservation.statut == 'attente_validation_prestataire' %}
+                         Validation requise (Partie Prestataire)
+                    {% else %}
+                        Compléter les informations
+                    {% endif %}
+                </h2>
+
+                {{ form_start(form, {'attr': {'enctype': 'multipart/form-data'}}) }}
+                    {{ form_widget(form) }} 
+                    <button type="submit" class="btn btn-primary mt-3">
+                        {% if reservation.statut == 'attente_dossier_client' %}
+                            Soumettre mon dossier
+                        {% else %}
+                            Enregistrer et Valider
+                        {% endif %}
+                    </button>
+                {{ form_end(form) }}
+
+            {# ---- MESSAGES D'ÉTAT (QUAND IL N'Y A PAS DE FORMULAIRE) ---- #}
+            
+            {% elseif reservation.statut == 'en_attente' %}
+                <div class="alert alert-info">Votre demande est en attente de validation par l'administrateur.</div>
+            
+            {% elseif reservation.statut == 'attente_validation_loueur' %}
+                <div class="alert alert-info">Votre dossier a été soumis et est en attente de validation par le loueur/administrateur.</div>
+            
+            {# --- BLOC POUR L'ÉTAT 'contrat_genere' (AVEC BOUTON SIGNER) --- #}
+            {% elseif reservation.statut == 'contrat_genere' %}
+                <div class="alert alert-primary">
+                    <h4 class="alert-heading">Contrat Prêt pour Signature</h4>
+                    <p>Toutes les parties ont validé le dossier. Le contrat PDF est disponible au téléchargement. Veuillez le relire avant de confirmer la signature.</p>
+                    <hr>
+                    <div class="d-flex align-items-center gap-2">
+                        {# 1. Bouton pour Télécharger le PDF #}
+                        <a href="{{ path('contrat_pdf', {id: reservation.id}) }}" class="btn btn-primary">
+                            <i class="bi bi-file-earmark-pdf-fill"></i> Télécharger le Contrat PDF
+                        </a>
+                        
+                        {# 2. Bouton pour Signer (déclenche la transition) #}
+                        {# CORRIGÉ : Syntaxe de la fonction can_transition #}
+                        {% if workflow_can(reservation, 'client_signe_contrat') %} 
+                            <form action="{{ path('contrat_transition', {id: reservation.id, transitionName: 'client_signe_contrat'}) }}" method="post" class="d-inline-block" onsubmit="return confirm('En cliquant sur OK, vous confirmez avoir lu et accepté les termes du contrat PDF. Cette action est définitive.');">
+                                <input type="hidden" name="_token" value="{{ csrf_token('transition-' ~ reservation.id ~ '-client_signe_contrat') }}">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-pen-fill"></i> J'accepte et je signe le contrat
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            
+            {# --- BLOC POUR L'ÉTAT FINAL 'contrat_signe' --- #}
+            {% elseif reservation.statut == 'contrat_signe' %}
+                <div class="alert alert-success">
+                     <h4 class="alert-heading">Contrat Signé</h4>
+                    <p>Le contrat a été signé électroniquement. Votre réservation est définitivement confirmée.</p>
+                     <hr>
+                     <a href="{{ path('contrat_pdf', {id: reservation.id}) }}" class="btn btn-outline-success">
+                        <i class="bi bi-file-earmark-pdf-fill"></i> Re-télécharger le Contrat Signé
+                    </a>
+                </div>
+            
+            {% elseif reservation.statut == 'annulee' %}
+                 <div class="alert alert-danger">Cette réservation a été annulée.</div>
+            
+            {% else %}
+                <p class="text-muted">Aucune action requise de votre part pour le moment.</p>
+            {% endif %}
+        </div>
+
+        {# Colonne de droite : Actions possibles et Infos du dossier #}
+        <div class="col-md-5">
+            
+            {# Section pour les actions simples (boutons de validation) #}
+            {% if not form %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">
+                        Actions Administratives
+                    </div>
+                    <div class="card-body">
+                        {# On filtre pour ne pas afficher le bouton "signer" (géré à gauche) #}
+                        {% set admin_transitions = transitions|filter(t => t.name != 'client_signe_contrat') %}
+                        
+                        {% if admin_transitions is not empty %}
+                            <div class="d-grid gap-2">
+                                {% for transition in admin_transitions %}
+                                    <form action="{{ path('contrat_transition', {id: reservation.id, transitionName: transition.name}) }}" method="post" onsubmit="return confirm('Confirmez-vous cette action : \'{{ transition.name|replace({'_': ' '})|capitalize }}\' ?');">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('transition-' ~ reservation.id ~ '-' ~ transition.name) }}">
+                                        
+                                        {% if transition.name == 'annuler' %}
+                                            <button type="submit" class="btn w-100 btn-danger">
+                                                <i class="bi bi-x-circle"></i> {{ transition.name|replace({'_': ' '})|capitalize }}
+                                            </button>
+                                        {% else %}
+                                            {# Boutons de validation standards (admin, mairie...) #}
+                                            <button type="submit" class="btn w-100 btn-outline-success">
+                                                <i class="bi bi-check-circle"></i> {{ transition.name|replace({'_': ' '})|capitalize }}
+                                            </button>
+                                        {% endif %}
+                                    </form>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-0">Aucune action administrative possible.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+            
+            {# Section pour afficher les infos du dossier déjà remplies #}
+            {% if reservation.dossierContrat %}
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        Informations du dossier
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <small class="text-muted d-block">Détails manifestation</small>
+                            {{ reservation.dossierContrat.detailsManifestation|nl2br ?: 'Non renseigné' }}
+                        </li>
+                        <li class="list-group-item">
+                            <small class="text-muted d-block">Besoins techniques</small>
+                            {{ reservation.dossierContrat.besoinsTechniques|nl2br ?: 'N/A' }}
+                        </li>
+                        <li class="list-group-item">
+                            <small class="text-muted d-block">Validation Mairie</small>
+                            {% if reservation.dossierContrat.validationMairie %}
+                                <span class="text-success fw-bold">Approuvé</span>
+                                {% if reservation.dossierContrat.commentaireMairie %}
+                                    <p class="small fst-italic mb-0">"{{ reservation.dossierContrat.commentaireMairie|nl2br }}"</p>
+                                {% endif %}
+                            {% else %} 
+                                <span class="text-muted fst-italic">En attente</span> 
+                            {% endif %}
+                        </li>
+                         <li class="list-group-item">
+                            <small class="text-muted d-block">Validation Prestataire/Tech</small>
+                             {% if reservation.dossierContrat.validationPrestataire %}
+                                <span class="text-success fw-bold">Approuvé</span>
+                                {% if reservation.dossierContrat.commentairePrestataire %}
+                                    <p class="small fst-italic mb-0">"{{ reservation.dossierContrat.commentairePrestataire|nl2br }}"</p>
+                                {% endif %}
+                            {% else %} 
+                                <span class="text-muted fst-italic">En attente</span> 
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item">
+                            <small class="text-muted d-block">Documents Client</small>
+                            {% if reservation.dossierContrat.planSecuritePath %}
+                                <a href="{{ asset(reservation.dossierContrat.planSecuritePath) }}" target="_blank">Plan de sécurité</a>
+                            {% else %} 
+                                <span class="text-muted fst-italic">Plan manquant</span> 
+                            {% endif %}
+                            <br>
+                            {% if reservation.dossierContrat.assurancePath %}
+                                <a href="{{ asset(reservation.dossierContrat.assurancePath) }}" target="_blank">Attestation d'assurance</a>
+                            {% else %} 
+                                <span class="text-muted fst-italic">Assurance manquante</span> 
+                            {% endif %}
+                        </li>
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

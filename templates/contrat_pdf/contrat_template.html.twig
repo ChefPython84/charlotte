@@ -1,0 +1,243 @@
+{# templates/contrat_pdf/contrat_template.html.twig #}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Contrat de Location - Réservation #{{ reservation.id }}</title>
+    <style>
+        @page {
+            margin: 1.5cm 1cm; /* Marges de la page */
+        }
+        body { 
+            font-family: DejaVu Sans, sans-serif; 
+            font-size: 10px; /* Taille légèrement réduite */
+            color: #333;
+            line-height: 1.4;
+        }
+        .header-logo {
+            max-width: 120px; 
+            max-height: 60px;
+            float: right;
+            margin-bottom: 20px;
+        }
+        h1 { 
+            text-align: center; 
+            color: #000; 
+            border-bottom: 2px solid #333; 
+            padding-bottom: 10px;
+            font-size: 18px;
+            margin-top: 0;
+        }
+        h2 { 
+            color: #111;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 15px; 
+        }
+        th, td { 
+            border: 1px solid #ccc; 
+            padding: 6px; /* Padding réduit */
+            text-align: left; 
+            vertical-align: top;
+        }
+        th { 
+            background-color: #f4f4f4; 
+            width: 35%; /* Largeur colonne intitulés */
+            font-weight: bold;
+        }
+        .section { 
+            margin-bottom: 20px; 
+            page-break-inside: avoid; 
+        }
+        .signature-section { 
+            margin-top: 50px; 
+            page-break-inside: avoid;
+        }
+        .signature-box {
+            border-top: 1px dotted #777;
+            padding-top: 8px;
+            margin-top: 30px; /* Moins d'espace */
+            width: 45%; /* Moins large */
+            display: inline-block; /* Pour mettre côte à côte */
+            margin-right: 5%;
+        }
+        .clear { clear: both; } /* Pour après les floats */
+        ul { padding-left: 20px; margin-top: 5px; }
+        li { margin-bottom: 3px; }
+        
+        /* Classes spécifiques pour Gotenberg (exemple, à vérifier) */
+        /* #header { position: fixed; top: -1cm; left: 0; right: 0; text-align: center; font-size: 9px; } */
+        /* #footer { position: fixed; bottom: -1cm; left: 0; right: 0; text-align: center; font-size: 9px; } */
+    </style>
+</head>
+<body>
+    {# En-tête (exemple simple, pourrait être dans #header) #}
+    {# Assurez-vous que 'images/logo.png' existe dans public/ #}
+    {# <img src="{{ asset('images/logo.png') }}" alt="Logo" class="header-logo"> #}
+    <div class="clear"></div>
+
+    <h1>Contrat de Location de Salle</h1>
+    <p style="text-align: center; font-size: 12px; margin-bottom: 25px;">
+        Réservation N° {{ reservation.id }}
+    </p>
+
+    {# --- Section Parties --- #}
+    <div class="section">
+        <h2>Parties Contractantes</h2>
+        <table>
+            <tr>
+                <th>Le Loueur</th>
+                <td>
+                    <strong>Espace 1500 (Exemple)</strong><br>
+                    [Adresse Complète du Loueur]<br>
+                    [SIRET/Infos Légales du Loueur]<br>
+                    Représenté par : [Nom du représentant]<br>
+                    Email : [Email contact loueur]
+                </td>
+            </tr>
+            <tr>
+                <th>Le Client / Organisateur</th>
+                <td>
+                    <strong>{{ reservation.user.prenom }} {{ reservation.user.nom }}</strong><br>
+                    Email : {{ reservation.user.email }}<br>
+                    Téléphone : {{ reservation.user.telephone ?: 'N/A' }}<br>
+                    Type : {{ reservation.user.typeOrganisateur ?: 'N/A' }}
+                    {% if reservation.user.commune %} ({{ reservation.user.commune }}) {% endif %}<br>
+                    SIRET : {{ reservation.user.siret ?: 'N/A' }} / RNA : {{ reservation.user.rna ?: 'N/A' }}
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    {# --- Section Location --- #}
+    <div class="section">
+        <h2>Objet de la Location</h2>
+        <table>
+            <tr><th>Salle Louée</th><td>{{ reservation.salle.nom }} (Capacité: {{ reservation.salle.capacite }} pers.)</td></tr>
+            <tr><th>Adresse</th><td>{{ reservation.salle.adresse }}, {{ reservation.salle.codePostal }} {{ reservation.salle.ville }}</td></tr>
+            <tr><th>Dates et Horaires</th><td>Du <strong>{{ reservation.dateDebut|date('l d F Y à H\\hi') }}</strong> au <strong>{{ reservation.dateFin|date('l d F Y à H\\hi') }}</strong></td></tr>
+             <tr>
+                 <th>Équipements Inclus</th>
+                 <td>
+                     {% if reservation.salle.equipements is not empty %}
+                         <ul>
+                         {% for equip in reservation.salle.equipements %}
+                             <li>{{ equip.nom }}</li>
+                         {% endfor %}
+                         </ul>
+                     {% else %}
+                         Aucun équipement spécifique listé.
+                     {% endif %}
+                 </td>
+             </tr>
+             <tr>
+                <th>Options / Services Supplémentaires</th>
+                 <td>
+                     {% if reservation.options is not empty %}
+                         <ul>
+                         {% for option in reservation.options %}
+                             <li>{{ option.nom }} (+ {{ option.prix|number_format(2, ',', ' ') }} € HT)</li>
+                         {% endfor %}
+                         </ul>
+                     {% else %}
+                         Aucune option sélectionnée.
+                     {% endif %}
+                 </td>
+             </tr>
+        </table>
+    </div>
+    
+    {# --- Section Dossier Manifestation --- #}
+    {% if reservation.dossierContrat %}
+    <div class="section">
+        <h2>Détails de la Manifestation</h2>
+        <table>
+            <tr><th>Type / Détails</th><td>{{ reservation.dossierContrat.detailsManifestation|nl2br ?: 'Non spécifié' }}</td></tr>
+            <tr><th>Besoins Techniques</th><td>{{ reservation.dossierContrat.besoinsTechniques|nl2br ?: 'Aucun besoin spécifique' }}</td></tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Validations et Documents</h2>
+        <table>
+             <tr>
+                <th>Documents Client</th>
+                <td>
+                    Plan sécurité : {% if reservation.dossierContrat.planSecuritePath %} Fourni {% else %} <span style="color: red;">Manquant</span> {% endif %}<br>
+                    Attestation d'assurance : {% if reservation.dossierContrat.assurancePath %} Fournie {% else %} <span style="color: red;">Manquante</span> {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>Avis Mairie</th>
+                <td>
+                    {% if reservation.dossierContrat.validationMairie %}
+                        <strong>Approuvé</strong>{% if reservation.dossierContrat.commentaireMairie %}<br><em>{{ reservation.dossierContrat.commentaireMairie|nl2br }}</em>{% endif %}
+                    {% else %} 
+                        Non requis ou en attente
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>Validation Technique/Prestataire</th>
+                <td>
+                     {% if reservation.dossierContrat.validationPrestataire %}
+                        <strong>Approuvé</strong>{% if reservation.dossierContrat.commentairePrestataire %}<br><em>{{ reservation.dossierContrat.commentairePrestataire|nl2br }}</em>{% endif %}
+                    {% else %} 
+                        Non requis ou en attente
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    </div>
+    {% endif %}
+
+    {# --- Section Financière --- #}
+    <div class="section">
+         <h2>Conditions Financières</h2>
+         <table>
+             <tr><th>Montant Total (HT)</th><td><strong>{{ reservation.prixTotal ? reservation.prixTotal|number_format(2, ',', ' ') ~ ' €' : 'À définir' }}</strong></td></tr>
+             {# Ajoutez ici les détails de paiement, acomptes, TVA, etc. #}
+             <tr><th>Modalités de Paiement</th><td>[Vos modalités : acompte, solde...]</td></tr>
+             <tr><th>Statut Paiement</th><td>
+                 {% set facture = reservation.factures|first %} {# Suppose une seule facture #}
+                 {{ facture ? facture.statut|capitalize : 'Facture non générée' }}
+             </td></tr>
+         </table>
+    </div>
+
+    {# --- Section Clauses --- #}
+    <div class="section">
+        <h2>Conditions Générales et Particulières</h2>
+        <p><strong>Article 1 :</strong> ... (Insérez vos clauses ici)...</p>
+        <p><strong>Article 2 :</strong> ...</p>
+        <p><strong>Article ... :</strong> Annulation, Dépôt de garantie, Responsabilités, etc.</p>
+    </div>
+
+    {# --- Section Signatures --- #}
+    <div class="signature-section">
+        <p>Fait à [Votre Ville], le {{ "now"|date("d/m/Y") }}, en deux exemplaires originaux.</p>
+        
+        <div class="signature-box">
+            <strong>Pour le Client / Organisateur :</strong><br>
+            {{ reservation.user.prenom }} {{ reservation.user.nom }}<br>
+            (Mention manuscrite "Lu et approuvé")<br><br><br>
+            Signature :
+        </div>
+        
+         <div class="signature-box" style="float: right; margin-right: 0;"> {# Pour aligner à droite #}
+            <strong>Pour le Loueur :</strong><br>
+            [Nom du représentant du Loueur]<br>
+            (Mention manuscrite "Lu et approuvé")<br><br><br>
+            Signature :
+        </div>
+        <div class="clear"></div>
+    </div>
+
+</body>
+</html>

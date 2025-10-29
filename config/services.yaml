@@ -22,3 +22,15 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+# --- AJOUTEZ CE BLOC À LA FIN ---
+    # Configure explicitement le ContratController
+    App\Controller\ContratController:
+        # Lie l'argument $gotenbergApiUrl du constructeur...
+        bind:
+            # ...à la valeur de la variable d'environnement GOTENBERG_API_URL
+            $gotenbergApiUrl: '%env(GOTENBERG_API_URL)%'
+        
+        # S'assure qu'il est toujours traité comme un contrôleur
+        tags: ['controller.service_arguments'] 
+    # --- FIN DE L'AJOUT ---

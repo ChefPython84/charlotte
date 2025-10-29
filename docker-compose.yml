@@ -1,5 +1,5 @@
-version: '3.9'
-
+# docker-compose.yml
+# SUPPRIMÉ : version: '3.9'
 services:
   php:
     build: .
@@ -7,11 +7,17 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./:/var/www/html:cached  # Monte ton projet entier
+      - ./:/var/www/html:cached
     depends_on:
       - mysql
+      - mailhog
+    environment:
+      MAILER_DSN: smtp://mailhog:1025
+      # AJOUT : L'URL pour que PHP trouve Gotenberg
+      GOTENBERG_API_URL: 'http://gotenberg:3000' 
 
   mysql:
+    # ... (inchangé)
     image: mysql:8.2
     container_name: charlotte-mysql
     environment:
@@ -25,6 +31,7 @@ services:
       - data:/var/lib/mysql
 
   phpmyadmin:
+    # ... (inchangé)
     image: phpmyadmin/phpmyadmin
     container_name: charlotte-phpmyadmin
     environment:
@@ -34,6 +41,20 @@ services:
       - "8081:80"
     depends_on:
       - mysql
+
+  mailhog:
+    # ... (inchangé)
+    image: mailhog/mailhog:latest
+    container_name: charlotte-mailhog
+    ports:
+      - "1025:1025" 
+      - "8025:8025" 
+
+  # --- AJOUT DU SERVICE GOTENBERG ---
+  gotenberg:
+    image: gotenberg/gotenberg:8 # Utilise une version stable
+    container_name: charlotte-gotenberg
+    # Pas besoin de ports externes, PHP y accède par le nom du service 'gotenberg'
 
 volumes:
   data:

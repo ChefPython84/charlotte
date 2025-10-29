@@ -1,0 +1,47 @@
+# config/packages/workflow.yaml
+framework:
+    workflows:
+        reservation_contract:
+            type: 'state_machine'
+            audit_trail:
+                enabled: true
+            marking_store:
+                type: 'method'
+                property: 'statut' 
+            supports:
+                - App\Entity\Reservation
+
+            # VÉRIFIEZ CES NOMS EXACTEMENT
+            places:
+                - en_attente                
+                - attente_dossier_client    
+                - attente_validation_loueur 
+                - attente_validation_mairie 
+                - attente_validation_prestataire 
+                - contrat_genere            
+                - contrat_signe             
+                - annulee                   # Sans accent, 'ee'
+
+            transitions:
+                # VÉRIFIEZ QUE LES 'from:' ET 'to:' UTILISENT LES NOMS CI-DESSUS
+                - name: admin_demande_dossier
+                  from: en_attente
+                  to:   attente_dossier_client
+                - name: client_soumet_dossier
+                  from: attente_dossier_client
+                  to:   attente_validation_loueur
+                - name: loueur_valide_dossier
+                  from: attente_validation_loueur
+                  to:   attente_validation_mairie
+                - name: mairie_valide_dossier
+                  from: attente_validation_mairie
+                  to:   attente_validation_prestataire
+                - name: prestataire_valide_dossier
+                  from: attente_validation_prestataire
+                  to:   contrat_genere
+                - name: client_signe_contrat
+                  from: contrat_genere
+                  to:   contrat_signe
+                - name: annuler
+                  from: [en_attente, attente_dossier_client, attente_validation_loueur, attente_validation_mairie, attente_validation_prestataire, contrat_genere]
+                  to:   annulee # Sans accent, 'ee'

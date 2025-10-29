@@ -28,6 +28,9 @@ class Reservation
     #[ORM\Column(type:"datetime")]
     private \DateTimeInterface $dateFin;
 
+    #[ORM\OneToOne(targetEntity: DossierContrat::class, cascade: ['persist', 'remove'])]
+    private ?DossierContrat $dossierContrat = null;
+    
     // statut: option, dossier_en_attente, en_attente, confirme, annule
     #[ORM\Column(length:50)]
     private string $statut = 'option';
@@ -120,6 +123,17 @@ class Reservation
 
     public function getDocuments(): ?array { return $this->documents; }
     public function setDocuments(?array $documents): self { $this->documents = $documents; return $this; }
+
+    public function getDossierContrat(): ?DossierContrat
+    {
+        return $this->dossierContrat;
+    }
+
+    public function setDossierContrat(?DossierContrat $dossierContrat): self
+    {
+        $this->dossierContrat = $dossierContrat;
+        return $this;
+    }
 
     public function getDossierSubmittedAt(): ?\DateTimeInterface { return $this->dossierSubmittedAt; }
     public function setDossierSubmittedAt(?\DateTimeInterface $dossierSubmittedAt): self { $this->dossierSubmittedAt = $dossierSubmittedAt; return $this; }

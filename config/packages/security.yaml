@@ -1,14 +1,15 @@
+# config/packages/security.yaml
 security:
-    # https://symfony.com/doc/current/security.html#registering-the-user-hashing-passwords
     password_hashers:
         Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
-    # https://symfony.com/doc/current/security.html#loading-the-user-the-user-provider
+    
     providers:
         users_in_memory: { memory: null }
         app_user_provider:
             entity:
                 class: App\Entity\User
                 property: email
+
     firewalls:
         dev:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
@@ -19,43 +20,46 @@ security:
             logout:
                 path: app_logout
             custom_authenticator: App\Security\AppAuthenticator
-
             remember_me:
                 secret: '%kernel.secret%'
                 lifetime: 604800
                 path: /
-                # by default, the feature is enabled by checking a checkbox in the
-                # login form, uncomment the following line to always enable it.
-                #always_remember_me: true
 
-            # activate different ways to authenticate
-            # https://symfony.com/doc/current/security.html#the-firewall
+    # --- HIÉRARCHIE DES RÔLES ---
+    # Important pour que ADMIN hérite des autres rôles
+    role_hierarchy:
+        ROLE_GESTIONNAIRE: ROLE_USER
+        ROLE_MAIRIE: ROLE_USER
+        ROLE_ADMIN: [ROLE_GESTIONNAIRE, ROLE_MAIRIE]
 
-            # https://symfony.com/doc/current/security/impersonating_user.html
-            # switch_user: true
-
-    # Easy way to control access for large sections of your site
-    # Note: Only the *first* access control that matches will be used
+    # --- CONTRÔLE D'ACCÈS (ORDRE IMPORTANT) ---
     access_control:
-        # page de login accessible à tous
+        # 1. Le plus spécifique : Admin seulement
+        - { path: ^/admin, roles: ROLE_ADMIN } 
+        
+        # 2. Mairie seulement (ou Admin)
+        - { path: ^/mairie, roles: ROLE_MAIRIE } 
+        
+        # 3. Gestionnaire seulement (ou Admin)
+        - { path: ^/gestion, roles: ROLE_GESTIONNAIRE } 
+        
+        # 4. Le tunnel de contrat (accessible par tous les rôles impliqués)
+        - { path: ^/espace-contrat, roles: [ROLE_CLIENT, ROLE_MAIRIE, ROLE_GESTIONNAIRE, ROLE_ADMIN] } 
+        
+        # 5. Pages publiques (Login, Register)
         - { path: ^/login, roles: PUBLIC_ACCESS }
-        # admin seulement
-        - { path: ^/admin, roles: ROLE_ADMIN }
-        # gestionnaires et admin
-        - { path: ^/gestion, roles: [ROLE_GESTIONNAIRE, ROLE_ADMIN] }
-        # clients connectés
-        - { path: ^/client, roles: ROLE_USER }
-
+        - { path: ^/register, roles: PUBLIC_ACCESS }
+        
+        # 6. Page d'accueil (IMPORTANT : Doit être PUBLIC_ACCESS si c'est la cible de redirection)
+        - { path: ^/, roles: PUBLIC_ACCESS } 
 
 when@test:
     security:
         password_hashers:
-            # By default, password hashers are resource intensive and take time. This is
-            # important to generate secure password hashes. In tests however, secure hashes
-            # are not important, waste resources and increase test times. The following
-            # reduces the work factor to the lowest possible values.
             Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface:
                 algorithm: auto
-                cost: 4 # Lowest possible value for bcrypt
-                time_cost: 3 # Lowest possible value for argon
-                memory_cost: 10 # Lowest possible value for argon
+                cost: 4
+                time_cost: 3
+                memory_cost: 10
+
+                
