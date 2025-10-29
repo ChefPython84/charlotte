@@ -4,49 +4,46 @@
         <meta charset="UTF-8">
         <title>{% block title %}Welcome!{% endblock %}</title>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>⚫️</text></svg>">
-        <link href="{{ asset('build/app.css') }}" rel="stylesheet">
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.19/index.global.min.css" rel="stylesheet">
-        <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.19/index.global.min.css" rel="stylesheet">
+        
+        {# SUPPRIMÉ : Le CDN CSS de Bootstrap est maintenant dans app.css (via l'import) #}
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
-
         {% block stylesheets %}
+            {# Charge app.css (qui contient maintenant Bootstrap CSS) #}
             {{ encore_entry_link_tags('app') }}
         {% endblock %}
 
-        {% block javascripts %}
-            {{ encore_entry_script_tags('app') }}
-{% block importmap %}{{ importmap('app') }}{% endblock %}
-        {% endblock %}
-        <style>
-
-            body {
-
-                background-color: white;
-
-            }
-
-        </style>
     </head>
     <body>
+        
         {% block body %}{% endblock %}
+
+        <div class="modal fade" id="bookingModal" tabindex="-1" aria-labelledby="bookingModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="bookingModalLabel">Nouvelle réservation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+              </div>
+              <div class="modal-body">
+                 <div id="bookingModalContent">
+                  </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {% block javascripts %}
+            {# Charge app.js (maintenant vide, ou presque) #}
+            {{ encore_entry_script_tags('app') }}
+            
+            {# 
+              On charge Bootstrap JS et FullCalendar JS via CDN.
+              Ils seront globaux et disponibles pour le script de salle/show.html.twig.
+            #}
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.19/index.global.min.js"></script>
+            
+        {% endblock %}
     </body>
 </html>
-
-<!-- Modal Réservation -->
-<div class="modal fade" id="bookingModal" tabindex="-1" aria-labelledby="bookingModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="bookingModalLabel">Nouvelle réservation</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-      </div>
-      <div class="modal-body">
-        <div id="bookingModalContent">
-          <!-- Formulaire chargé ici via Ajax -->
-        </div>
-      </div>
-    </div>
-  </div>
-</div>

@@ -30,9 +30,16 @@ class AppFixtures extends Fixture
         // 1 admin + 2 gestionnaires + 7 clients
         for ($i = 0; $i < 10; $i++) {
             $user = new User();
+            
+            // MODIFICATION : On fixe l'email de l'admin
+            if ($i === 0) {
+                $user->setEmail('admin@test.com');
+            } else {
+                $user->setEmail($faker->unique()->safeEmail());
+            }
+
             $user->setNom($faker->lastName())
                  ->setPrenom($faker->firstName())
-                 ->setEmail($faker->unique()->safeEmail())
                  ->setTelephone($faker->optional(0.8)->phoneNumber())
                  // motDePasse stocké hashed pour éviter erreurs d'authentification brute
                  ->setMotDePasse(password_hash('password', PASSWORD_BCRYPT))

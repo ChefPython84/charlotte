@@ -3,11 +3,7 @@
 namespace App\Controller;
 
 use App\Repository\SalleRepository;
-use App\Repository\ReservationRepository;
-use App\Repository\AvisRepository;
-use App\Repository\FactureRepository;
-use App\Repository\NotificationRepository;
-use App\Repository\UserRepository;
+// On supprime les autres repositories qui ne servent qu'aux stats
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,21 +14,12 @@ class HomeController extends AbstractController
     #[Route('/', name: 'home')]
     public function index(
         Request $request,
-        SalleRepository $salleRepo,
-        ReservationRepository $reservationRepo,
-        AvisRepository $avisRepo,
-        FactureRepository $factureRepo,
-        NotificationRepository $notificationRepo,
-        UserRepository $userRepo
+        SalleRepository $salleRepo
+        // On supprime tous les autres repos (Reservation, Avis, Facture...)
     ): Response {
-        // --- stats pour le dashboard ---
-        $totalSalles = $salleRepo->count([]);
-        $totalReservations = $reservationRepo->count([]);
-        $totalAvis = $avisRepo->count([]);
-        $totalUsers = $userRepo->count([]);
-        $totalFactures = $factureRepo->count([]);
-        $totalNotifications = $notificationRepo->count([]);
-
+        
+        // --- SUPPRESSION DE TOUT LE BLOC STATS ---
+        
         // --- paramètres de recherche / filtres (méthode GET) ---
         $q = trim($request->query->get('q', ''));
         $ville = trim($request->query->get('ville', ''));
@@ -88,12 +75,15 @@ class HomeController extends AbstractController
         return $this->render('home/index.html.twig', [
             'salles' => $salles,
             'featured' => $featured,
-            'totalSalles' => $totalSalles,
-            'totalReservations' => $totalReservations,
-            'totalAvis' => $totalAvis,
-            'totalUsers' => $totalUsers,
-            'totalFactures' => $totalFactures,
-            'totalNotifications' => $totalNotifications,
+            
+            // --- SUPPRESSION DES VARIABLES STATS ---
+            // 'totalSalles' => $totalSalles,
+            // 'totalReservations' => $totalReservations,
+            // 'totalAvis' => $totalAvis,
+            // 'totalUsers' => $totalUsers,
+            // 'totalFactures' => $totalFactures,
+            // 'totalNotifications' => $totalNotifications,
+            
             'q' => $q,
             'ville' => $ville,
             'capacite' => $capacite,
