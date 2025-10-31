@@ -18,4 +18,3 @@ class SalleController extends AbstractController
     ]);
     }
 }
-            // Traite le formulaire soumis

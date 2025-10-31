@@ -33,7 +33,7 @@ class Reservation
     
     // statut: option, dossier_en_attente, en_attente, confirme, annule
     #[ORM\Column(length:50)]
-    private string $statut = 'option';
+    private string $statut = 'en_attente';
 
     #[ORM\Column(type:"decimal", precision:10, scale:2, nullable:true)]
     private ?string $prixTotal = null;
