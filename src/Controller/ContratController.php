@@ -4,7 +4,9 @@ namespace App\Controller;
 
 use App\Entity\DossierContrat; 
 use App\Entity\Reservation;
-use App\Entity\Notification; // Entité pour les notifications
+use App\Entity\Notification;
+use App\Entity\Commentaire; // <-- Ajout pour les commentaires
+use App\Form\CommentaireFormType; // <-- Ajout pour les commentaires
 use App\Form\DossierClientType; 
 use App\Form\DossierMairieType; 
 use App\Form\DossierPrestataireType; 
@@ -30,7 +32,7 @@ class ContratController extends AbstractController
     private WorkflowInterface $reservationContractWorkflow;
     private EntityManagerInterface $em;
     private SluggerInterface $slugger; 
-    private UrlGeneratorInterface $urlGenerator; // Pour générer les liens de notification
+    private UrlGeneratorInterface $urlGenerator; 
     private HttpClientInterface $httpClient;
     private string $gotenbergApiUrl;
 
@@ -53,21 +55,60 @@ class ContratController extends AbstractController
 
     /**
      * Page "Hub" qui affiche l'état actuel du dossier de réservation
+     * et gère les formulaires de workflow ET les commentaires.
      */
     #[Route('/espace-contrat/{id}', name: 'contrat_tunnel')]
     public function show(Reservation $reservation, Request $request): Response
     {
         // $this->denyAccessUnlessGranted('view', $reservation); 
+        
+        // --- LOGIQUE DES COMMENTAIRES (DÉBUT) ---
+        $commentaire = new Commentaire();
+        $commentaireForm = $this->createForm(CommentaireFormType::class, $commentaire);
+        $commentaireForm->handleRequest($request);
+
+        if ($commentaireForm->isSubmitted() && $commentaireForm->isValid()) {
+            $user = $this->getUser();
+            if ($user) {
+                $commentaire->setAuteur($user);
+                $commentaire->setReservation($reservation);
+                
+                $this->em->persist($commentaire);
+                $this->em->flush();
+
+                // --- NOTIFICATION POUR L'ADMIN/CLIENT ---
+                // (Cette logique peut être affinée pour notifier l'autre partie)
+                if ($this->isGranted('ROLE_CLIENT')) {
+                     $this->addFlash('success', 'Commentaire envoyé à l\'administration.');
+                     // TODO: Logique pour notifier l'admin
+                } else {
+                     $this->addFlash('success', 'Commentaire envoyé au client.');
+                     // TODO: Logique pour notifier le client
+                }
+
+            } else {
+                $this->addFlash('danger', 'Vous devez être connecté pour poster un commentaire.');
+            }
+            
+            // On redirige pour éviter la re-soumission (Pattern PRG)
+            // On ajoute une #ancre pour que la page se recharge au niveau du chat
+            return $this->redirectToRoute('contrat_tunnel', [
+                'id' => $reservation->getId(),
+                '_fragment' => 'chat-box' // Ancre vers le chat
+            ]);
+        }
+        // --- LOGIQUE DES COMMENTAIRES (FIN) ---
+
 
         $transitions = $this->reservationContractWorkflow->getEnabledTransitions($reservation);
         $statutActuel = $reservation->getStatut(); 
         $template = 'contrat_tunnel/show.html.twig'; 
         $form = null; 
-
+        
         // Génère le lien pour les notifications une seule fois
         $link = $this->urlGenerator->generate('contrat_tunnel', ['id' => $reservation->getId()]);
 
-        // S'assure qu'un objet DossierContrat existe si on est dans un état où il est nécessaire
+        // S'assure qu'un objet DossierContrat existe
         if (in_array($statutActuel, ['attente_dossier_client', 'attente_validation_loueur', 'attente_validation_mairie', 'attente_validation_prestataire']) && !$reservation->getDossierContrat()) {
             $dossier = new DossierContrat();
             $reservation->setDossierContrat($dossier);
@@ -76,7 +117,7 @@ class ContratController extends AbstractController
         }
 
         // ---- Logique pour afficher et traiter le formulaire du CLIENT ----
-        if ($statutActuel === 'attente_dossier_client' /* && ($this->getUser() === $reservation->getUser() || $this->isGranted('ROLE_ADMIN')) */ ) {
+        if ($statutActuel === 'attente_dossier_client') {
             
             $dossier = $reservation->getDossierContrat(); 
             $form = $this->createForm(DossierClientType::class, $dossier); 
@@ -90,7 +131,6 @@ class ContratController extends AbstractController
                     $newFilename = $this->uploadFile($planFile, 'plans_securite'); 
                     if ($newFilename) $dossier->setPlanSecuritePath($newFilename); 
                 }
-
                 $assuranceFile = $form->get('assuranceFile')->getData();
                 if ($assuranceFile) {
                     $newFilename = $this->uploadFile($assuranceFile, 'assurances');
@@ -107,12 +147,12 @@ class ContratController extends AbstractController
                     // --- AJOUT NOTIFICATION ---
                     $this->creerNotification(
                         $reservation->getUser(),
-                        "Votre dossier pour '{$reservation->getSalle()->getNom()}' a été soumis et est en attente de validation.", // ✍️ Message à personnaliser
-                        $link // On passe le lien
+                        "Dossier soumis pour '{$reservation->getSalle()->getNom()}'. En attente de validation.", // ✍️ Message à personnaliser
+                        $link 
                     );
                     // --- FIN AJOUT ---
 
-                    $this->em->flush(); // Sauvegarde la transition ET la notification
+                    $this->em->flush(); 
                     $this->addFlash('success', 'Dossier client soumis avec succès.');
                 } else {
                         $this->addFlash('warning', 'Impossible de soumettre le dossier (workflow).');
@@ -122,29 +162,24 @@ class ContratController extends AbstractController
         }
         
         // ---- Logique pour afficher/traiter le formulaire MAIRIE ----
-        elseif ($statutActuel === 'attente_validation_mairie' /* && $this->isGranted('ROLE_MAIRIE') */) { 
+        elseif ($statutActuel === 'attente_validation_mairie') { 
             
             $dossier = $reservation->getDossierContrat();
             $form = $this->createForm(DossierMairieType::class, $dossier);
             $form->handleRequest($request);
 
             if ($form->isSubmitted() && $form->isValid()) { 
-                
-                $this->em->flush(); // Sauvegarde le commentaire et la coche
-
-                // Applique la transition du workflow
+                $this->em->flush(); 
                 if ($this->reservationContractWorkflow->can($reservation, 'mairie_valide_dossier')) {
                     $this->reservationContractWorkflow->apply($reservation, 'mairie_valide_dossier');
-
                     // --- AJOUT NOTIFICATION ---
                     $this->creerNotification(
                         $reservation->getUser(),
-                        "L'avis de la mairie pour '{$reservation->getSalle()->getNom()}' a été reçu.", // ✍️ Message à personnaliser
-                        $link // On passe le lien
+                        "Avis Mairie reçu pour '{$reservation->getSalle()->getNom()}'.", // ✍️ Message à personnaliser
+                        $link 
                     );
                     // --- FIN AJOUT ---
-
-                    $this->em->flush(); // Sauvegarde le nouveau statut ET la notif
+                    $this->em->flush(); 
                     $this->addFlash('success', 'Partie Mairie validée.');
                 } else {
                         $this->addFlash('warning', 'Impossible de valider le dossier (workflow).');
@@ -154,29 +189,24 @@ class ContratController extends AbstractController
         }
         
         // ---- Logique pour afficher/traiter le formulaire PRESTATAIRE ----
-        elseif ($statutActuel === 'attente_validation_prestataire' /* && $this->isGranted('ROLE_PRESTATAIRE') */) { 
+        elseif ($statutActuel === 'attente_validation_prestataire') { 
             
             $dossier = $reservation->getDossierContrat();
             $form = $this->createForm(DossierPrestataireType::class, $dossier);
             $form->handleRequest($request);
 
             if ($form->isSubmitted() && $form->isValid()) {
-                
-                $this->em->flush(); // Sauvegarde le commentaire et la coche
-
-                // Applique la transition du workflow
+                $this->em->flush(); 
                 if ($this->reservationContractWorkflow->can($reservation, 'prestataire_valide_dossier')) {
                     $this->reservationContractWorkflow->apply($reservation, 'prestataire_valide_dossier');
-
                     // --- AJOUT NOTIFICATION ---
                     $this->creerNotification(
                         $reservation->getUser(),
-                        "La validation technique pour '{$reservation->getSalle()->getNom()}' est complétée. Votre contrat est prêt.", // ✍️ Message à personnaliser
-                        $link // On passe le lien
+                        "Validation technique complétée pour '{$reservation->getSalle()->getNom()}'.", // ✍️ Message à personnaliser
+                        $link 
                     );
                     // --- FIN AJOUT ---
-                    
-                    $this->em->flush(); // Sauvegarde le nouveau statut ('contrat_genere') ET la notif
+                    $this->em->flush(); 
                     $this->addFlash('success', 'Partie Prestataire validée. Le contrat est prêt.');
                 } else {
                         $this->addFlash('warning', 'Impossible de valider le dossier (workflow).');
@@ -190,6 +220,8 @@ class ContratController extends AbstractController
             'reservation' => $reservation,
             'transitions' => $transitions, 
             'form' => $form ? $form->createView() : null, 
+            'commentaireForm' => $commentaireForm->createView(), // <-- Passe le formulaire de chat
+            'commentaires' => $reservation->getCommentaires(), // <-- Passe les commentaires existants
         ]);
     }
 
@@ -212,26 +244,24 @@ class ContratController extends AbstractController
                 $this->reservationContractWorkflow->apply($reservation, $transitionName);
 
                 // --- AJOUT LOGIQUE DE NOTIFICATION ---
-                $userToNotify = $reservation->getUser(); // C'est presque toujours le client
+                $userToNotify = $reservation->getUser(); 
                 $message = null;
-                // On génère le lien pour la notif
                 $link = $this->urlGenerator->generate('contrat_tunnel', ['id' => $reservation->getId()]);
 
                 // ✍️ Personnalisez vos messages ici
                 switch ($transitionName) {
                     case 'client_signe_contrat':
-                        $message = "Félicitations ! Vous avez signé votre contrat pour '{$reservation->getSalle()->getNom()}'.";
+                        $message = "Contrat signé ! Votre réservation '{$reservation->getSalle()->getNom()}' est confirmée.";
                         break;
                     case 'loueur_valide': // Remplacez par vos noms de transition
-                        $message = "Bonne nouvelle ! Le loueur a validé votre dossier pour '{$reservation->getSalle()->getNom()}'.";
+                        $message = "Dossier validé par le loueur pour '{$reservation->getSalle()->getNom()}'.";
                         break;
                     case 'generer_contrat': // Remplacez par vos noms de transition
-                         $message = "Votre contrat PDF pour '{$reservation->getSalle()->getNom()}' est maintenant disponible.";
+                         $message = "Le contrat PDF pour '{$reservation->getSalle()->getNom()}' est disponible.";
                         break;
                     case 'annuler':
-                        $message = "Votre réservation pour '{$reservation->getSalle()->getNom()}' a été annulée.";
+                        $message = "La réservation '{$reservation->getSalle()->getNom()}' a été annulée.";
                         break;
-                    // Ajoutez d'autres 'case' pour les transitions que vous voulez notifier
                 }
 
                 if ($message && $userToNotify) {
@@ -250,7 +280,7 @@ class ContratController extends AbstractController
     }
 
     /**
-     * Génère le contrat en PDF en appelant Gotenberg (VERSION CORRIGÉE)
+     * Génère le contrat en PDF en appelant Gotenberg
      */
     #[Route('/espace-contrat/{id}/pdf', name: 'contrat_pdf')]
     public function generateContratPdf(Reservation $reservation): Response
@@ -268,44 +298,37 @@ class ContratController extends AbstractController
         ]);
 
         try {
-            // --- CORRECTION : Construire le corps 'multipart/form-data' manuellement ---
-            
-            // 1. Créer la partie "fichier" (notre HTML)
+            // 2. Construire le corps 'multipart/form-data'
             $filePart = new DataPart($html, 'index.html', 'text/html');
-            
-            // 2. Créer le formulaire de données
             $formData = new FormDataPart(['files' => $filePart]);
-
-            // 3. Récupérer les en-têtes et le corps préparés par FormDataPart
             $headers = $formData->getPreparedHeaders()->toArray();
             $body = $formData->bodyToIterable();
 
-            // 4. Appeler l'API de Gotenberg avec les bons en-têtes et le corps
+            // 3. Appeler l'API de Gotenberg
             $response = $this->httpClient->request('POST', $this->gotenbergApiUrl . '/forms/chromium/convert/html', [
-                'headers' => $headers, // Utilise les en-têtes Content-Type générés
-                'body' => $body,       // Utilise le corps généré
+                'headers' => $headers, 
+                'body' => $body,
             ]);
-            // --- FIN DE LA CORRECTION ---
 
-
-            // 5. Vérifier si la conversion a réussi
+            // 4. Vérifier si la conversion a réussi
             if (200 !== $response->getStatusCode()) {
                 $errorContent = $response->getContent(false); 
                 throw new \Exception('Gotenberg a échoué (Code ' . $response->getStatusCode() . '): ' . $errorContent);
             }
 
-            // 6. Récupérer le contenu PDF et le retourner
+            // 5. Récupérer le contenu PDF et le retourner
             $pdfContent = $response->getContent();
             $filename = 'contrat-reservation-' . $reservation->getId() . '.pdf';
 
             $response = new Response($pdfContent);
-            // --- C'EST LA MODIFICATION ---
+            
+            // --- MODIFICATION POUR LA LISEUSE ---
             $disposition = $response->headers->makeDisposition(
-                // AVANT: ResponseHeaderBag::DISPOSITION_ATTACHMENT, 
-                ResponseHeaderBag::DISPOSITION_INLINE, // MAINTENANT: INLINE
+                ResponseHeaderBag::DISPOSITION_INLINE, // Affiche dans le navigateur
                 $filename
             );
-            // --- FIN DE LA MODIFICATION ---
+            // --- FIN MODIFICATION ---
+
             $response->headers->set('Content-Disposition', $disposition);
             $response->headers->set('Content-Type', 'application/pdf');
 
@@ -353,7 +376,7 @@ class ContratController extends AbstractController
     }
 
     /**
-     * Fonction helper pour créer une notification (mise à jour)
+     * Fonction helper pour créer une notification
      */
     private function creerNotification(?\App\Entity\User $user, string $message, ?string $link = null): void
     {

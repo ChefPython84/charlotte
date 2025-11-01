@@ -3,10 +3,61 @@
 
 {% block title %}Espace Contrat - Réservation #{{ reservation.id }}{% endblock %}
 
+{# On ajoute un peu de CSS pour le chat #}
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        .chat-container {
+            max-height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-bubble {
+            padding: 10px 15px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+        .chat-bubble.client {
+            background-color: #0d6efd;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+            text-align: left;
+        }
+        .chat-bubble.admin {
+            background-color: #e9ecef;
+            color: #212529;
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+            text-align: left;
+        }
+        .chat-bubble strong {
+            font-size: 0.9rem;
+        }
+        .chat-bubble p {
+            margin-bottom: 0;
+            margin-top: 5px;
+        }
+        .chat-bubble small {
+            display: block;
+            font-size: 0.75rem;
+            opacity: 0.8;
+            margin-top: 5px;
+            text-align: right;
+        }
+        .chat-bubble.admin small {
+            text-align: left;
+        }
+    </style>
+{% endblock %}
+
 {% block body %}
 <div class="container py-5">
     
-    {# En-tête avec les infos principales #}
+    {# En-tête (reste inchangé) #}
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3">Espace Contrat - Réservation #{{ reservation.id }}</h1>
@@ -16,7 +67,6 @@
             </p>
         </div>
         <div>
-            {# Affiche le statut actuel de manière visible #}
             <span class="badge fs-6 
                 {% if reservation.statut == 'annulee' %} bg-danger
                 {% elseif reservation.statut == 'contrat_signe' %} bg-success
@@ -27,38 +77,27 @@
             </span>
         </div>
     </div>
-
-    {# Affiche les messages flash (succès, erreur) #}
     {% include '_partials/_flash_messages.html.twig' %}
-
     <hr class="my-4">
 
     <div class="row g-4">
         
         {# --- COLONNE DE GAUCHE : LISEUSE PDF ou FORMULAIRE --- #}
         <div class="col-md-7">
-
-            {# --- DÉBUT MODIFICATION : LISEUSE PDF --- #}
+            {# (Toute votre logique de liseuse PDF et de formulaires reste INCHANGÉE) #}
             {% if reservation.statut == 'contrat_genere' or reservation.statut == 'contrat_signe' %}
-                
                 <h2 class="h5 mb-3">Contrat de location</h2>
                 <div class="card shadow-sm mb-3">
                     <div class="card-body">
-                        {# Le <embed> fait un appel à votre route 'contrat_pdf' et affiche le résultat #}
-                        <embed src="{{ path('contrat_pdf', {id: reservation.id}) }}" 
-                               type="application/pdf" 
-                               width="100%" 
-                               height="600px" />
+                        <embed src="{{ path('contrat_pdf', {id: reservation.id}) }}" type="application/pdf" width="100%" height="600px" />
                     </div>
                 </div>
-
-                {# Bloc d'action pour 'contrat_genere' (Signer) #}
+                
                 {% if reservation.statut == 'contrat_genere' %}
                     <div class="alert alert-primary">
                         <h4 class="alert-heading">Contrat Prêt pour Signature</h4>
                         <p>Veuillez relire le contrat ci-dessus avant de confirmer la signature.</p>
                         <hr>
-                        {# Bouton pour Signer (déclenche la transition) #}
                         {% if workflow_can(reservation, 'client_signe_contrat') %} 
                             <form action="{{ path('contrat_transition', {id: reservation.id, transitionName: 'client_signe_contrat'}) }}" method="post" class="d-inline-block" onsubmit="return confirm('En cliquant sur OK, vous confirmez avoir lu et accepté les termes du contrat PDF. Cette action est définitive.');">
                                 <input type="hidden" name="_token" value="{{ csrf_token('transition-' ~ reservation.id ~ '-client_signe_contrat') }}">
@@ -69,8 +108,6 @@
                         {% endif %}
                     </div>
                 {% endif %}
-
-                {# Bloc d'action pour 'contrat_signe' (Déjà signé) #}
                 {% if reservation.statut == 'contrat_signe' %}
                      <div class="alert alert-success">
                          <h4 class="alert-heading">Contrat Signé</h4>
@@ -81,13 +118,8 @@
                          </a>
                     </div>
                 {% endif %}
-
-            {# --- FIN MODIFICATION : LISEUSE PDF --- #}
-
-
-            {# Affiche le formulaire si un formulaire est passé (états précédents) #}
+            
             {% elseif form %}
-                
                 <h2 class="h5 mb-3">
                     {% if reservation.statut == 'attente_dossier_client' %}
                         Veuillez compléter votre dossier
@@ -99,7 +131,6 @@
                         Compléter les informations
                     {% endif %}
                 </h2>
-
                 <div class="card shadow-sm">
                     <div class="card-body">
                         {{ form_start(form, {'attr': {'enctype': 'multipart/form-data'}}) }}
@@ -114,43 +145,35 @@
                         {{ form_end(form) }}
                     </div>
                 </div>
-
-            {# Affiche les autres messages d'état (en attente, annulé...) #}
+            
             {% else %}
+                {# (blocs 'en_attente', 'annulee', etc. inchangés) #}
                 {% if reservation.statut == 'en_attente' %}
                     <div class="alert alert-info">Votre demande est en attente de validation par l'administrateur.</div>
-                
                 {% elseif reservation.statut == 'attente_validation_loueur' %}
                     <div class="alert alert-info">Votre dossier a été soumis et est en attente de validation par le loueur/administrateur.</div>
-                
                 {% elseif reservation.statut == 'annulee' %}
                     <div class="alert alert-danger">Cette réservation a été annulée.</div>
-                
                 {% else %}
                     <p class="text-muted">Aucune action requise de votre part pour le moment.</p>
                 {% endif %}
             {% endif %}
         </div> {# Fin col-md-7 #}
 
-        {# --- COLONNE DE DROITE : Actions et Infos --- #}
+        {# --- COLONNE DE DROITE : Actions, Infos ET CHAT --- #}
         <div class="col-md-5">
             
-            {# Section pour les actions simples (boutons de validation) #}
+            {# (Bloc Actions Administratives inchangé) #}
             {% if not form and (reservation.statut != 'contrat_genere' and reservation.statut != 'contrat_signe') %}
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header">
-                        Actions Administratives
-                    </div>
+                    <div class="card-header">Actions Administratives</div>
                     <div class="card-body">
-                        {# On filtre pour ne pas afficher le bouton "signer" (géré à gauche) #}
                         {% set admin_transitions = transitions|filter(t => t.name != 'client_signe_contrat') %}
-                        
                         {% if admin_transitions is not empty %}
                             <div class="d-grid gap-2">
                                 {% for transition in admin_transitions %}
                                     <form action="{{ path('contrat_transition', {id: reservation.id, transitionName: transition.name}) }}" method="post" onsubmit="return confirm('Confirmez-vous cette action : \'{{ transition.name|replace({'_': ' '})|capitalize }}\' ?');">
                                         <input type="hidden" name="_token" value="{{ csrf_token('transition-' ~ reservation.id ~ '-' ~ transition.name) }}">
-                                        
                                         {% if transition.name == 'annuler' %}
                                             <button type="submit" class="btn w-100 btn-danger">
                                                 <i class="bi bi-x-circle"></i> {{ transition.name|replace({'_': ' '})|capitalize }}
@@ -170,60 +193,66 @@
                 </div>
             {% endif %}
             
-            {# Section pour afficher les infos du dossier déjà remplies #}
+            {# (Bloc Infos du dossier inchangé) #}
             {% if reservation.dossierContrat %}
-                <div class="card shadow-sm">
-                    <div class="card-header">
-                        Informations du dossier
-                    </div>
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header">Informations du dossier</div>
                     <ul class="list-group list-group-flush">
-                        <li class="list-group-item">
-                            <small class="text-muted d-block">Détails manifestation</small>
-                            {{ reservation.dossierContrat.detailsManifestation|nl2br ?: 'Non renseigné' }}
-                        </li>
-                        <li class="list-group-item">
-                            <small class="text-muted d-block">Besoins techniques</small>
-                            {{ reservation.dossierContrat.besoinsTechniques|nl2br ?: 'N/A' }}
-                        </li>
+                        <li class="list-group-item"><small class="text-muted d-block">Détails manifestation</small> {{ reservation.dossierContrat.detailsManifestation|nl2br ?: 'N/A' }}</li>
+                        <li class="list-group-item"><small class="text-muted d-block">Besoins techniques</small> {{ reservation.dossierContrat.besoinsTechniques|nl2br ?: 'N/A' }}</li>
                         <li class="list-group-item">
                             <small class="text-muted d-block">Validation Mairie</small>
-                            {% if reservation.dossierContrat.validationMairie %}
-                                <span class="text-success fw-bold">Approuvé</span>
-                                {% if reservation.dossierContrat.commentaireMairie %}
-                                    <p class="small fst-italic mb-0">"{{ reservation.dossierContrat.commentaireMairie|nl2br }}"</p>
-                                {% endif %}
-                            {% else %} 
-                                <span class="text-muted fst-italic">En attente</span> 
-                            {% endif %}
+                            {% if reservation.dossierContrat.validationMairie %}<span class="text-success fw-bold">Approuvé</span>{% if reservation.dossierContrat.commentaireMairie %}<p class="small fst-italic mb-0">"{{ reservation.dossierContrat.commentaireMairie|nl2br }}"</p>{% endif %}{% else %}<span class="text-muted fst-italic">En attente</span>{% endif %}
                         </li>
                          <li class="list-group-item">
                             <small class="text-muted d-block">Validation Prestataire/Tech</small>
-                             {% if reservation.dossierContrat.validationPrestataire %}
-                                <span class="text-success fw-bold">Approuvé</span>
-                                {% if reservation.dossierContrat.commentairePrestataire %}
-                                    <p class="small fst-italic mb-0">"{{ reservation.dossierContrat.commentairePrestataire|nl2br }}"</p>
-                                {% endif %}
-                            {% else %} 
-                                 <span class="text-muted fst-italic">En attente</span> 
-                            {% endif %}
+                             {% if reservation.dossierContrat.validationPrestataire %}<span class="text-success fw-bold">Approuvé</span>{% if reservation.dossierContrat.commentairePrestataire %}<p class="small fst-italic mb-0">"{{ reservation.dossierContrat.commentairePrestataire|nl2br }}"</p>{% endif %}{% else %}<span class="text-muted fst-italic">En attente</span>{% endif %}
                         </li>
                         <li class="list-group-item">
                             <small class="text-muted d-block">Documents Client</small>
-                            {% if reservation.dossierContrat.planSecuritePath %}
-                                <a href="{{ asset(reservation.dossierContrat.planSecuritePath) }}" target="_blank">Plan de sécurité</a>
-                            {% else %} 
-                                <span class="text-muted fst-italic">Plan manquant</span> 
-                            {% endif %}
-                            <br>
-                            {% if reservation.dossierContrat.assurancePath %}
-                                <a href="{{ asset(reservation.dossierContrat.assurancePath) }}" target="_blank">Attestation d'assurance</a>
-                            {% else %} 
-                                <span class="text-muted fst-italic">Assurance manquante</span> 
-                            {% endif %}
+                            {% if reservation.dossierContrat.planSecuritePath %}<a href="{{ asset(reservation.dossierContrat.planSecuritePath) }}" target="_blank">Plan de sécurité</a>{% else %}<span class="text-muted fst-italic">Plan manquant</span>{% endif %}<br>
+                            {% if reservation.dossierContrat.assurancePath %}<a href="{{ asset(reservation.dossierContrat.assurancePath) }}" target="_blank">Attestation d'assurance</a>{% else %}<span class="text-muted fst-italic">Assurance manquante</span>{% endif %}
                         </li>
                     </ul>
                 </div>
             {% endif %}
+
+            {# --- DÉBUT AJOUT : BLOC COMMENTAIRES --- #}
+            {# On ajoute une 'id' pour l'ancre de redirection #}
+            <div class="card shadow-sm" id="chat-box">
+                <div class="card-header">
+                    <strong>Échanges sur ce dossier</strong>
+                </div>
+                <div class="card-body">
+                    <div class="chat-container mb-3 p-2 bg-light border rounded">
+                        {% if commentaires is empty %}
+                            <p class="text-center text-muted small m-0">Aucun message.</p>
+                        {% else %}
+                            {% for comm in commentaires %}
+                                {# On vérifie si l'auteur est un admin/gestionnaire #}
+                                {% set isAdmin = 'ROLE_CLIENT' not in comm.auteur.roles %}
+                                
+                                <div class="chat-bubble {{ isAdmin ? 'admin' : 'client' }}">
+                                    <strong>{{ isAdmin ? 'Administration' : comm.auteur.prenom }} :</strong>
+                                    <p class="mb-0">{{ comm.contenu|nl2br }}</p>
+                                    <small>{{ comm.dateEnvoi|date('d/m/Y à H:i') }}</small>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    {# Formulaire pour envoyer un nouveau message #}
+                    {{ form_start(commentaireForm) }}
+                        {{ form_widget(commentaireForm.contenu) }}
+                        {{ form_errors(commentaireForm.contenu) }}
+                        <div class="text-end">
+                            <button class="btn btn-primary btn-sm mt-2">Envoyer</button>
+                        </div>
+                    {{ form_end(commentaireForm) }}
+                </div>
+            </div>
+            {# --- FIN AJOUT : BLOC COMMENTAIRES --- #}
+
         </div> {# Fin col-md-5 #}
     </div>
 </div>

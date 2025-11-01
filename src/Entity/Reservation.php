@@ -68,10 +68,15 @@ class Reservation
     #[ORM\OneToMany(mappedBy:"reservation", targetEntity:Facture::class, orphanRemoval:true)]
     private Collection $factures;
 
+    #[ORM\OneToMany(targetEntity: Commentaire::class, mappedBy: 'reservation', orphanRemoval: true)]
+    #[ORM\OrderBy(['dateEnvoi' => 'ASC'])] // Trie les commentaires du plus ancien au plus récent
+    private Collection $commentaires;
+
     public function __construct()
     {
         $this->options = new ArrayCollection();
         $this->factures = new ArrayCollection();
+        $this->commentaires = new ArrayCollection();
     }
 
     // ---- getters / setters ----
@@ -143,6 +148,33 @@ class Reservation
 
     public function getContractSignedAt(): ?\DateTimeInterface { return $this->contractSignedAt; }
     public function setContractSignedAt(?\DateTimeInterface $contractSignedAt): self { $this->contractSignedAt = $contractSignedAt; return $this; }
+
+
+    /** @return Collection<int, Commentaire> */
+    public function getCommentaires(): Collection
+    {
+        return $this->commentaires;
+    }
+
+    public function addCommentaire(Commentaire $commentaire): static
+    {
+        if (!$this->commentaires->contains($commentaire)) {
+            $this->commentaires->add($commentaire);
+            $commentaire->setReservation($this);
+        }
+        return $this;
+    }
+
+    public function removeCommentaire(Commentaire $commentaire): static
+    {
+        if ($this->commentaires->removeElement($commentaire)) {
+            // set the owning side to null (unless already changed)
+            if ($commentaire->getReservation() === $this) {
+                $commentaire->setReservation(null);
+            }
+        }
+        return $this;
+    }
 
     /** @return Collection<int, Facture> */
     public function getFactures(): Collection { return $this->factures; }

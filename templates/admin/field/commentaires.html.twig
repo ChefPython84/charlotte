@@ -1,0 +1,68 @@
+{# templates/admin/field/commentaires.html.twig #}
+{# 
+  Ce template est appelé par EasyAdmin. 
+  'field.entity.instance' est notre objet 'Reservation'.
+#}
+{% set commentaires = field.entity.instance.commentaires %}
+
+{# On réutilise le même style que sur le front-end pour la cohérence #}
+<style>
+    .ea-chat-container {
+        max-height: 400px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        background: #f8f9fa; 
+        border: 1px solid #dee2e6; 
+        padding: 10px;
+        border-radius: 4px;
+    }
+    .ea-chat-bubble {
+        padding: 10px 15px;
+        border-radius: 20px;
+        margin-bottom: 10px;
+        max-width: 90%;
+        word-wrap: break-word;
+    }
+    .ea-chat-bubble.client {
+        background-color: #0d6efd;
+        color: white;
+        margin-left: auto;
+        border-bottom-right-radius: 5px;
+        text-align: left;
+    }
+    .ea-chat-bubble.admin {
+        background-color: #e9ecef;
+        color: #212529;
+        margin-right: auto;
+        border-bottom-left-radius: 5px;
+        text-align: left;
+    }
+    .ea-chat-bubble strong { font-size: 0.9rem; }
+    .ea-chat-bubble p { margin-bottom: 0; margin-top: 5px; }
+    .ea-chat-bubble small {
+        display: block;
+        font-size: 0.75rem;
+        opacity: 0.8;
+        margin-top: 5px;
+        text-align: right;
+    }
+    .ea-chat-bubble.admin small { text-align: left; }
+</style>
+
+<div class="ea-chat-container">
+    {% if commentaires is empty %}
+        <p class="text-center text-muted small m-0">Aucun échange sur ce dossier.</p>
+    {% else %}
+        {% for comm in commentaires %}
+            {# On vérifie si l'auteur est un admin/gestionnaire #}
+            {% set isAdmin = 'ROLE_CLIENT' not in comm.auteur.roles %}
+            
+            <div class="ea-chat-bubble {{ isAdmin ? 'admin' : 'client' }}">
+                <strong>{{ isAdmin ? 'Administration' : comm.auteur.prenom }} :</strong>
+                <p class="mb-0">{{ comm.contenu|nl2br }}</p>
+                <small>{{ comm.dateEnvoi|date('d/m/Y à H:i') }}</small>
+            </div>
+        {% endfor %}
+    {% endif %}
+</div>

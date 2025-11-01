@@ -15,6 +15,9 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\MoneyField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField; 
 use Symfony\Component\Messenger\MessageBusInterface; 
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface; // <-- AJOUTER
+use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Actions;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
 
 class ReservationCrudController extends AbstractCrudController
 {
@@ -34,8 +37,37 @@ class ReservationCrudController extends AbstractCrudController
         return Reservation::class;
     }
 
+    // --- AJOUT DE LA CONFIGURATION DES ACTIONS ---
+    public function configureActions(Actions $actions): Actions
+    {
+        // Crée une action qui redirige vers la page front-end 'contrat_tunnel'
+        $goToChat = Action::new('goToChat', 'Voir / Répondre', 'fa fa-comments')
+            ->linkToRoute('contrat_tunnel', function (Reservation $reservation) {
+                return ['id' => $reservation->getId()];
+            })
+            ->setHtmlAttributes(['target' => '_blank']); // Ouvre dans un nouvel onglet
+
+        return $actions
+            // Ajoute le bouton sur la page de liste (index)
+            ->add(Crud::PAGE_INDEX, $goToChat)
+            // Ajoute le bouton sur la page de détail
+            ->add(Crud::PAGE_DETAIL, $goToChat);
+    }
+    // --- FIN AJOUT ---
+
     public function configureFields(string $pageName): iterable
     {
+
+
+        // --- AJOUT DU CHAMP "COMMENTAIRES" ---
+        // Ceci est un "pseudo-champ" qui n'existe que sur la page de détail
+        // Il utilise notre template personnalisé pour afficher le chat
+        yield TextField::new('commentaires')
+            ->setLabel('Échanges sur le dossier')
+            ->onlyOnDetail() // N'apparaît que sur la page de détail
+            ->setTemplatePath('admin/field/commentaires.html.twig'); // Le template à utiliser
+        // --- FIN AJOUT --
+
         // (Cette fonction reste INCHANGÉE)
         yield IdField::new('id')->onlyOnIndex();
         yield AssociationField::new('salle');
