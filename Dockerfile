@@ -14,6 +14,11 @@ RUN apt-get update \
         libpng-dev \
         libonig-dev \
         libxml2-dev \
+        curl \
+        # --- AJOUT DE NODE.JS ---
+    && curl -sL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+
     && docker-php-ext-configure intl \
     && docker-php-ext-install -j$(nproc) \
         intl \
