@@ -44,6 +44,7 @@
         "symfony/webpack-encore-bundle": "^2.3",
         "symfony/workflow": "^7.0",
         "symfony/yaml": "^7.0",
+        "symfonycasts/reset-password-bundle": "^1.23",
         "twig/extra-bundle": "^3.12",
         "twig/twig": "^3.15"
     },

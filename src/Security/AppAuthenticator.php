@@ -15,6 +15,9 @@ use Symfony\Component\Security\Http\Authenticator\Passport\Credentials\PasswordC
 use Symfony\Component\Security\Http\Authenticator\Passport\Passport;
 use Symfony\Component\Security\Http\Util\TargetPathTrait;
 use Symfony\Bundle\SecurityBundle\Security; 
+use App\Repository\UserRepository;
+use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
+use Symfony\Component\Security\Core\Exception\UserNotFoundException;
 
 class AppAuthenticator extends AbstractLoginFormAuthenticator
 {
@@ -22,12 +25,14 @@ class AppAuthenticator extends AbstractLoginFormAuthenticator
 
     public const LOGIN_ROUTE = 'app_login';
     private UrlGeneratorInterface $urlGenerator;
-    private Security $security; 
+    private Security $security;
+    private UserRepository $userRepository;
 
-    public function __construct(UrlGeneratorInterface $urlGenerator, Security $security)
+    public function __construct(UrlGeneratorInterface $urlGenerator, Security $security, UserRepository $userRepository)
     {
         $this->urlGenerator = $urlGenerator;
         $this->security = $security;
+        $this->userRepository = $userRepository;
     }
 
     /**
@@ -42,6 +47,25 @@ class AppAuthenticator extends AbstractLoginFormAuthenticator
 
         // stocker le dernier username dans la session (clé explicite, compatible)
         $request->getSession()->set('_security.last_username', $email);
+
+        // --- DÉBUT DE LA LOGIQUE "BONUS" ---
+        
+        // 1. Récupérer l'utilisateur d'abord
+        $user = $this->userRepository->findOneBy(['email' => $email]);
+
+        if (!$user) {
+            // On lance l'exception standard si l'utilisateur n'existe pas
+            throw new UserNotFoundException('Email could not be found.');
+        }
+
+        // 2. VÉRIFIER SI LE MOT DE PASSE EST NULL
+        if ($user->getMotDePasse() === null) {
+            // L'utilisateur existe mais n'a jamais défini de mot de passe
+            throw new CustomUserMessageAuthenticationException(
+                'Votre compte est en attente. Veuillez utiliser le lien envoyé par email pour définir votre mot de passe.'
+            );
+        }
+        // --- FIN DE LA LOGIQUE "BONUS" ---
 
         return new Passport(
             new UserBadge($email),

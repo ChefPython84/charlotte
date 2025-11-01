@@ -36,8 +36,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length:20, nullable:true)]
     private ?string $telephone = null;
 
-    #[ORM\Column(length:255)]
-    private string $motDePasse;
+    #[ORM\Column(length:255, nullable:true)]
+    private ?string $motDePasse = null;
 
     // MODIFIÉ : Le rôle par défaut est 'ROLE_CLIENT' (plus logique que 'ROLE_USER')
     #[ORM\Column(length:50)]
