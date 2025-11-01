@@ -1,0 +1,65 @@
+{# templates/compte/profil.html.twig #}
+{% extends 'base.html.twig' %}
+
+{% block title %}Modifier mon profil{% endblock %}
+
+{% block body %}
+<div class="container my-5">
+    <div class="row">
+
+        {# Colonne de gauche : Menu (copié de index.html.twig) #}
+        <div class="col-md-3">
+            {% include 'compte/_menu.html.twig' with { active: 'profil' } %}
+        </div>
+
+        {# Colonne de droite : Formulaire #}
+        <div class="col-md-9">
+            <h1 class="h3 mb-4">Modifier mon profil</h1>
+
+            {% include '_partials/_flash_messages.html.twig' %}
+
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    {{ form_start(profilForm) }}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                {{ form_row(profilForm.prenom) }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form_row(profilForm.nom) }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form_row(profilForm.email) }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form_row(profilForm.telephone) }}
+                            </div>
+                            
+                            <hr class_="my-3">
+                            
+                            <div class="col-md-6">
+                                {{ form_row(profilForm.typeOrganisateur) }}
+                            </div>
+                             <div class="col-md-6">
+                                {{ form_row(profilForm.commune) }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form_row(profilForm.siret) }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form_row(profilForm.rna) }}
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary mt-4">Enregistrer les modifications</button>
+                    {{ form_end(profilForm) }}
+                    
+                    <hr class="my-4">
+                    <a href="{{ path('app_compte_password') }}">Changer mon mot de passe</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{# templates/compte/index.html.twig #}
+{% extends 'base.html.twig' %}
+
+{% block title %}Mon Compte{% endblock %}
+
+{% block body %}
+<div class="container my-5">
+
+    {% include '_partials/_flash_messages.html.twig' %}
+
+    <div class="row">
+        {# Colonne de gauche : Menu #}
+        <div class="col-md-3">
+            {# On inclut le menu partiel, en lui disant que 'dashboard' est actif #}
+            {% include 'compte/_menu.html.twig' with { active: 'dashboard' } %}
+        </div>
+
+        {# Colonne de droite : Contenu principal (Réservations) #}
+        <div class="col-md-9">
+            <h1 class="h3 mb-4">Tableau de bord</h1>
+            
+            <h2 class="h5 mb-3">Mes Réservations</h2>
+            <div class="card shadow-sm">
+                <div class="list-group list-group-flush">
+                    {% if reservations is empty %}
+                        <div class="list-group-item text-muted text-center p-4">
+                            Vous n'avez aucune réservation pour le moment.
+                        </div>
+                    {% else %}
+                        {% for res in reservations %}
+                            {# --- CORRECTION ICI --- #}
+                            <a href="{{ path('contrat_tunnel', {id: res.id}) }}" class="list-group-item list-group-item-action">
+                            {# --- FIN CORRECTION --- #}
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h5 class="mb-1">{{ res.salle.nom }}</h5>
+                                    <small class="text-muted">{{ res.dateDebut|date('d/m/Y') }}</small>
+                                </div>
+                                <p class="mb-1">
+                                    Du {{ res.dateDebut|date('d/m/Y H:i') }} au {{ res.dateFin|date('d/m/Y H:i') }}
+                                </p>
+                                <span class="badge 
+                                    {% if res.statut == 'contrat_signe' %} bg-success
+                                    {% elseif res.statut starts with 'attente' %} bg-warning text-dark
+                                    {% elseif res.statut == 'annulee' %} bg-danger
+                                    {% else %} bg-secondary {% endif %}">
+                                    {{ res.statut|replace({'_': ' '})|capitalize }}
+                                </span>
+                            </a>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <h2 class="h5 mt-5 mb-3">Mes Factures</h2>
+            <div class="card shadow-sm">
+                <ul class="list-group list-group-flush">
+                    {% if factures is empty %}
+                         <li class="list-group-item text-muted text-center p-4">
+                            Aucune facture disponible.
+                        </li>
+                    {% else %}
+                        {% for facture in factures %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    Facture #{{ facture.id }} (Réservation #{{ facture.reservation.id }})
+                                    <br>
+                                    <small class="text-muted">Date : {{ facture.dateFacture|date('d/m/Y') }} | Montant : {{ facture.montant }} €</small>
+                                </div>
+                                <div>
+                                    <span class="badge {% if facture.statut == 'payée' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                        {{ facture.statut|capitalize }}
+                                    </span>
+                                    {# Ce nom de route 'facture_show' était correct #}
+                                    <a href="{{ path('facture_show', {id: facture.id}) }}" class="btn btn-sm btn-outline-primary ms-2">Voir</a>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    {% endif %}
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\DossierContrat; 
 use App\Entity\Reservation;
+use App\Entity\Notification; // <-- AJOUT POUR LES NOTIFICATIONS
 use App\Form\DossierClientType; 
 use App\Form\DossierMairieType; 
 use App\Form\DossierPrestataireType; 
@@ -21,8 +22,8 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 // AJOUTS POUR GOTENBERG (PDF)
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
-use Symfony\Component\Mime\Part\DataPart; // Nécessaire pour la correction
-use Symfony\Component\Mime\Part\Multipart\FormDataPart; // Nécessaire pour la correction
+use Symfony\Component\Mime\Part\DataPart; 
+use Symfony\Component\Mime\Part\Multipart\FormDataPart;
 
 class ContratController extends AbstractController
 {
@@ -63,7 +64,7 @@ class ContratController extends AbstractController
         $template = 'contrat_tunnel/show.html.twig'; 
         $form = null; 
 
-        // S'assure qu'un objet DossierContrat existe si on est dans un état où il est nécessaire
+        // S'assure qu'un objet DossierContrat existe...
         if (in_array($statutActuel, ['attente_dossier_client', 'attente_validation_loueur', 'attente_validation_mairie', 'attente_validation_prestataire']) && !$reservation->getDossierContrat()) {
             $dossier = new DossierContrat();
             $reservation->setDossierContrat($dossier);
@@ -81,12 +82,12 @@ class ContratController extends AbstractController
             if ($form->isSubmitted() && $form->isValid()) { 
                 
                 // --- Gestion des Uploads ---
+                // ... (votre code d'upload reste inchangé) ...
                 $planFile = $form->get('planSecuriteFile')->getData();
                 if ($planFile) {
                     $newFilename = $this->uploadFile($planFile, 'plans_securite'); 
                     if ($newFilename) $dossier->setPlanSecuritePath($newFilename); 
                 }
-
                 $assuranceFile = $form->get('assuranceFile')->getData();
                 if ($assuranceFile) {
                     $newFilename = $this->uploadFile($assuranceFile, 'assurances');
@@ -94,15 +95,23 @@ class ContratController extends AbstractController
                 }
                 // --- Fin Gestion Uploads ---
 
-                $this->em->flush(); 
+                $this->em->flush(); // Sauvegarde les fichiers uploadés
 
                 // Applique la transition du workflow
                 if ($this->reservationContractWorkflow->can($reservation, 'client_soumet_dossier')) {
                     $this->reservationContractWorkflow->apply($reservation, 'client_soumet_dossier');
-                    $this->em->flush(); 
-                    $this->addFlash('success', 'Dossier client soumis avec succès. Notification envoyée à l\'administrateur.');
+                    
+                    // --- AJOUT NOTIFICATION ---
+                    $this->creerNotification(
+                        $reservation->getUser(),
+                        "Votre dossier pour '{$reservation->getSalle()->getNom()}' a été soumis. Il est en attente de validation."
+                    );
+                    // --- FIN AJOUT ---
+
+                    $this->em->flush(); // Sauvegarde la transition ET la notification
+                    $this->addFlash('success', 'Dossier client soumis avec succès.');
                 } else {
-                     $this->addFlash('warning', 'Impossible de soumettre le dossier (workflow).');
+                        $this->addFlash('warning', 'Impossible de soumettre le dossier (workflow).');
                 }
                 return $this->redirectToRoute('contrat_tunnel', ['id' => $reservation->getId()]);
             }
@@ -122,10 +131,18 @@ class ContratController extends AbstractController
                 // Applique la transition du workflow
                 if ($this->reservationContractWorkflow->can($reservation, 'mairie_valide_dossier')) {
                     $this->reservationContractWorkflow->apply($reservation, 'mairie_valide_dossier');
-                    $this->em->flush(); // Sauvegarde le nouveau statut
-                    $this->addFlash('success', 'Partie Mairie validée. Notification envoyée au prestataire.');
+
+                    // --- AJOUT NOTIFICATION ---
+                    $this->creerNotification(
+                        $reservation->getUser(),
+                        "L'avis de la mairie pour '{$reservation->getSalle()->getNom()}' a été reçu."
+                    );
+                    // --- FIN AJOUT ---
+
+                    $this->em->flush(); // Sauvegarde le nouveau statut ET la notif
+                    $this->addFlash('success', 'Partie Mairie validée.');
                 } else {
-                     $this->addFlash('warning', 'Impossible de valider le dossier (workflow).');
+                        $this->addFlash('warning', 'Impossible de valider le dossier (workflow).');
                 }
                 return $this->redirectToRoute('contrat_tunnel', ['id' => $reservation->getId()]);
             }
@@ -145,16 +162,24 @@ class ContratController extends AbstractController
                 // Applique la transition du workflow
                 if ($this->reservationContractWorkflow->can($reservation, 'prestataire_valide_dossier')) {
                     $this->reservationContractWorkflow->apply($reservation, 'prestataire_valide_dossier');
-                    $this->em->flush(); // Sauvegarde le nouveau statut ('contrat_genere')
-                    $this->addFlash('success', 'Partie Prestataire validée. Le contrat est prêt à être généré/signé.');
+
+                    // --- AJOUT NOTIFICATION ---
+                    $this->creerNotification(
+                        $reservation->getUser(),
+                        "La validation technique pour '{$reservation->getSalle()->getNom()}' est complétée. Votre contrat est prêt."
+                    );
+                    // --- FIN AJOUT ---
+                    
+                    $this->em->flush(); // Sauvegarde le nouveau statut ('contrat_genere') ET la notif
+                    $this->addFlash('success', 'Partie Prestataire validée. Le contrat est prêt.');
                 } else {
-                     $this->addFlash('warning', 'Impossible de valider le dossier (workflow).');
+                        $this->addFlash('warning', 'Impossible de valider le dossier (workflow).');
                 }
                 return $this->redirectToRoute('contrat_tunnel', ['id' => $reservation->getId()]);
             }
         }
 
-        // Rend le template principal en passant les informations nécessaires
+        // Rend le template principal
         return $this->render($template, [
             'reservation' => $reservation,
             'transitions' => $transitions, 
@@ -170,16 +195,48 @@ class ContratController extends AbstractController
     {
         $csrfTokenId = 'transition-'.$reservation->getId().'-'.$transitionName;
         if (!$this->isCsrfTokenValid($csrfTokenId, $request->request->get('_token'))) {
-             $this->addFlash('danger', 'Action invalide ou expirée.');
-             return $this->redirectToRoute('contrat_tunnel', ['id' => $reservation->getId()]);
+            $this->addFlash('danger', 'Action invalide ou expirée.');
+            return $this->redirectToRoute('contrat_tunnel', ['id' => $reservation->getId()]);
         }
+        
         try {
             if ($this->reservationContractWorkflow->can($reservation, $transitionName)) {
+                
+                // 1. Appliquer la transition
                 $this->reservationContractWorkflow->apply($reservation, $transitionName);
+
+                // --- AJOUT LOGIQUE DE NOTIFICATION ---
+                $userToNotify = $reservation->getUser(); // C'est presque toujours le client
+                $message = null;
+
+                switch ($transitionName) {
+                    case 'client_signe_contrat':
+                        $message = "Félicitations ! Vous avez signé votre contrat pour '{$reservation->getSalle()->getNom()}'.";
+                        break;
+                    case 'loueur_valide': // Remplacez par vos noms de transition
+                        $message = "Bonne nouvelle ! Le loueur a validé votre dossier pour '{$reservation->getSalle()->getNom()}'.";
+                        break;
+                    case 'generer_contrat': // Remplacez par vos noms de transition
+                         $message = "Votre contrat PDF pour '{$reservation->getSalle()->getNom()}' est maintenant disponible.";
+                        break;
+                    case 'annuler':
+                        $message = "Votre réservation pour '{$reservation->getSalle()->getNom()}' a été annulée.";
+                        break;
+                    // Ajoutez d'autres 'case' pour les transitions que vous voulez notifier
+                }
+
+                if ($message && $userToNotify) {
+                    $this->creerNotification($userToNotify, $message);
+                }
+                // --- FIN AJOUT ---
+
+                // 2. Sauvegarder la transition ET la notification
                 $this->em->flush();
                 $this->addFlash('success', "Le dossier est passé à l'état suivant.");
+
             } else { $this->addFlash('danger', 'La transition demandée n\'est pas possible depuis l\'état actuel.'); }
         } catch (\Exception $e) { $this->addFlash('danger', 'Erreur lors de l\'application du workflow : ' . $e->getMessage()); }
+        
         return $this->redirectToRoute('contrat_tunnel', ['id' => $reservation->getId()]);
     }
 
@@ -189,6 +246,7 @@ class ContratController extends AbstractController
     #[Route('/espace-contrat/{id}/pdf', name: 'contrat_pdf')]
     public function generateContratPdf(Reservation $reservation): Response
     {
+        // ... (Votre logique de génération PDF reste inchangée) ...
         // $this->denyAccessUnlessGranted('view', $reservation);
         
         if (!in_array($reservation->getStatut(), ['contrat_genere', 'contrat_signe'])) {
@@ -202,33 +260,22 @@ class ContratController extends AbstractController
         ]);
 
         try {
-            // --- CORRECTION : Construire le corps 'multipart/form-data' manuellement ---
-            
-            // 1. Créer la partie "fichier" (notre HTML)
+            // ... (Votre logique d'appel à Gotenberg reste inchangée) ...
             $filePart = new DataPart($html, 'index.html', 'text/html');
-            
-            // 2. Créer le formulaire de données
             $formData = new FormDataPart(['files' => $filePart]);
-
-            // 3. Récupérer les en-têtes et le corps préparés par FormDataPart
             $headers = $formData->getPreparedHeaders()->toArray();
             $body = $formData->bodyToIterable();
 
-            // 4. Appeler l'API de Gotenberg avec les bons en-têtes et le corps
             $response = $this->httpClient->request('POST', $this->gotenbergApiUrl . '/forms/chromium/convert/html', [
-                'headers' => $headers, // Utilise les en-têtes Content-Type générés
-                'body' => $body,       // Utilise le corps généré
+                'headers' => $headers, 
+                'body' => $body,
             ]);
-            // --- FIN DE LA CORRECTION ---
-
-
-            // 5. Vérifier si la conversion a réussi
+            
             if (200 !== $response->getStatusCode()) {
                 $errorContent = $response->getContent(false); 
                 throw new \Exception('Gotenberg a échoué (Code ' . $response->getStatusCode() . '): ' . $errorContent);
             }
 
-            // 6. Récupérer le contenu PDF et le retourner
             $pdfContent = $response->getContent();
             $filename = 'contrat-reservation-' . $reservation->getId() . '.pdf';
 
@@ -253,6 +300,7 @@ class ContratController extends AbstractController
      */
     private function uploadFile($file, string $targetDirectory): ?string
     {
+        // ... (Votre logique d'upload reste inchangée) ...
         if (!$file) {
              return null; 
         }
@@ -281,5 +329,22 @@ class ContratController extends AbstractController
              $this->addFlash('danger', 'Erreur lors de la configuration du chemin d\'upload. Vérifiez le paramètre kernel.project_dir ou les permissions.');
              return null;
         }
+    }
+
+    /**
+     * Fonction helper pour créer une notification
+     */
+    private function creerNotification(?\App\Entity\User $user, string $message): void
+    {
+        if (!$user) {
+            return;
+        }
+        
+        $notification = new Notification();
+        $notification->setUser($user);
+        $notification->setMessage($message);
+        
+        $this->em->persist($notification);
+        // Note : le flush() doit être appelé APRÈS cette méthode
     }
 }

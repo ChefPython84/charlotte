@@ -1,0 +1,49 @@
+{# templates/compte/_menu.html.twig #}
+{# 
+   Ce template attend une variable 'active' pour savoir quel lien surligner
+#}
+
+{# --- DÉBUT MODIFICATION --- #}
+{# On appelle notre nouvelle fonction Twig UNE SEULE FOIS en haut #}
+{% set unread_notifs = get_unread_notifications() %}
+{% set unread_count = unread_notifs|length %}
+{# --- FIN MODIFICATION --- #}
+
+<div class="card shadow-sm">
+    <div class="card-body text-center">
+        <img src="https://ui-avatars.com/api/?name={{ app.user.prenom|url_encode }}+{{ app.user.nom|url_encode }}&background=0d6efd&color=fff&rounded=true" 
+             alt="Avatar" 
+             class="mb-3"
+             width="100"
+             height="100">
+        <h5 class="card-title">{{ app.user.prenom }} {{ app.user.nom }}</h5>
+        <p class="card-text text-muted small">{{ app.user.email }}</p>
+        <a href="{{ path('app_logout') }}" class="btn btn-sm btn-outline-danger mt-2">Déconnexion</a>
+    </div>
+    
+    <div class="list-group list-group-flush">
+        <a href="{{ path('app_compte') }}" 
+           class="list-group-item list-group-item-action {% if active is defined and active == 'dashboard' %}active{% endif %}">
+           Tableau de bord
+        </a>
+        <a href="{{ path('app_compte_profil') }}" 
+           class="list-group-item list-group-item-action {% if active is defined and active == 'profil' %}active{% endif %}">
+           Modifier mon profil
+        </a>
+        <a href="{{ path('app_compte_password') }}" 
+           class="list-group-item list-group-item-action">
+           Changer de mot de passe
+        </a>
+
+        {# --- DÉBUT MODIFICATION --- #}
+        <a href="{{ path('app_notifications') }}" 
+           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if active is defined and active == 'notifications' %}active{% endif %}">
+            Notifications
+            {# On affiche le compteur s'il est supérieur à 0 #}
+            {% if unread_count > 0 %}
+                <span class="badge bg-danger rounded-pill">{{ unread_count }}</span>
+            {% endif %}
+        </a>
+        {# --- FIN MODIFICATION --- #}
+    </div>
+</div>

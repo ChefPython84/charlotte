@@ -1,45 +1,63 @@
+{# templates/notification/index.html.twig #}
 {% extends 'base.html.twig' %}
 
 {% block title %}Mes Notifications{% endblock %}
 
 {% block body %}
-<div class="container mt-4">
-    <h2 class="mb-4">📩 Mes Notifications</h2>
+<div class="container my-5">
+    <div class="row">
 
-    <table class="table table-hover shadow-sm rounded">
-        <thead class="table-dark">
-            <tr>
-                <th>Message</th>
-                <th>Date</th>
-                <th>Statut</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for notif in notifications %}
-                <tr class="{{ notif.estLu ? '' : 'table-warning' }}">
-                    <td>{{ notif.message }}</td>
-                    <td>{{ notif.dateEnvoi|date('d/m/Y H:i') }}</td>
-                    <td>
-                        {% if notif.estLu %}
-                            <span class="badge bg-success">Lu</span>
-                        {% else %}
-                            <span class="badge bg-danger">Non lu</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if not notif.estLu %}
-                            <a href="{{ path('app_notification_mark_read', {id: notif.id}) }}" 
-                               class="btn btn-sm btn-outline-primary">Marquer comme lu</a>
-                        {% endif %}
-                    </td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td colspan="4" class="text-center text-muted">Aucune notification</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+        {# Colonne de gauche : Menu #}
+        <div class="col-md-3">
+            {# On inclut le menu, en lui disant que 'notifications' est actif #}
+            {% include 'compte/_menu.html.twig' with { active: 'notifications' } %}
+        </div>
+
+        {# Colonne de droite : Contenu #}
+        <div class="col-md-9">
+            <h1 class="h3 mb-4">📩 Mes Notifications</h1>
+            
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Message</th>
+                                <th>Date</th>
+                                <th class="text-center">Statut</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for notif in notifications %}
+                                <tr class="{{ notif.estLu ? 'table-secondary' : 'table-light fw-bold' }}">
+                                    <td>{{ notif.message }}</td>
+                                    <td>{{ notif.dateEnvoi|date('d/m/Y H:i') }}</td>
+                                    <td class="text-center">
+                                        {% if notif.estLu %}
+                                            <span class="badge bg-light text-dark">Lu</span>
+                                        {% else %}
+                                            <span class="badge bg-primary">Non lu</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if not notif.estLu %}
+                                            <a href="{{ path('app_notification_mark_read', {id: notif.id}) }}" 
+                                               class="btn btn-sm btn-outline-primary">Marquer lu</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted p-4">Aucune notification</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
 </div>
 {% endblock %}

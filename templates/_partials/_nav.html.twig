@@ -1,0 +1,40 @@
+{# ... dans votre barre de navigation ... #}
+
+<ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+    {# ... autres liens (Accueil, Salles, etc.) ... #}
+
+    {% if app.user %}
+        {# L'utilisateur est connecté #}
+
+        {# Si l'utilisateur est un admin/gestionnaire, il voit le lien Admin #}
+        {% if is_granted('ROLE_GESTIONNAIRE') or is_granted('ROLE_ADMIN') %}
+            <li class="nav-item">
+                <a class="nav-link" href="{{ path('admin') }}">
+                    <i class="bi bi-shield-lock-fill"></i> Administration
+                </a>
+            </li>
+        {% endif %}
+
+        {# Tous les utilisateurs connectés (y compris les clients) voient "Mon Compte" #}
+        <li class="nav-item">
+            <a class="nav-link" href="{{ path('app_compte') }}">
+                <i class="bi bi-person-circle"></i> Mon Compte
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="{{ path('app_logout') }}">
+                <i class="bi bi-box-arrow-right"></i> Déconnexion
+            </a>
+        </li>
+
+    {% else %}
+        {# L'utilisateur n'est PAS connecté #}
+        <li class="nav-item">
+            <a class="nav-link" href="{{ path('app_login') }}">Connexion</a>
+        </li>
+        <li class="nav-item">
+            {# Mettez un lien vers votre page d'inscription si vous en avez une #}
+            <a href="{{ path('app_register') }}" class="btn btn-primary ms-2">Inscription</a>
+        </li>
+    {% endif %}
+</ul>
