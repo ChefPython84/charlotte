@@ -1,9 +1,27 @@
-<h1>Hi!</h1>
+{# templates/reset_password/email.html.twig #}
+{% extends 'base.html.twig' %}
 
-<p>To reset your password, please visit the following link</p>
+{% block body %}
+    <div class="container" style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Réinitialisation de votre mot de passe</h2>
 
-<a href="{{ url('app_reset_password', {token: resetToken.token}) }}">{{ url('app_reset_password', {token: resetToken.token}) }}</a>
+        <p>Bonjour,</p>
 
-<p>This link will expire in {{ resetToken.expirationMessageKey|trans(resetToken.expirationMessageData, 'ResetPasswordBundle') }}.</p>
+        <p>Vous avez demandé la réinitialisation de votre mot de passe pour votre compte Espace 1500.</p>
+        <p>Pour choisir un nouveau mot de passe, veuillez cliquer sur le lien ci-dessous :</p>
 
-<p>Cheers!</p>
+        <p style="margin: 25px 0;">
+            {# Note : resetToken est passé ici, pas 'url' (sauf si vous l'ajoutez) #}
+            <a href="{{ url('app_reset_password', {token: resetToken.token}) }}" style="background-color: #ffc107; color: black; padding: 12px 20px; text-decoration: none; border-radius: 5px;">
+                Réinitialiser mon mot de passe
+            </a>
+        </p>
+
+        <p>Ce lien expirera dans {{ resetToken.expirationMessageKey|trans(resetToken.expirationMessageData, 'ResetPasswordBundle') }}.</p>
+
+        <p>Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email.</p>
+        
+        <p>Merci,<br>
+        L'équipe Espace 1500</p>
+    </div>
+{% endblock %}

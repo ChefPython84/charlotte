@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mailer\MailerInterface;
-use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Address; // <-- ASSUREZ-VOUS d'avoir ce 'use'
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -72,22 +72,20 @@ class ResetPasswordController extends AbstractController
 
     /**
      * Validates and process the reset URL that the user clicked in their email.
+     * C'est la version corrigée qui n'utilise PAS la session pour le token.
      */
     #[Route('/reset/{token}', name: 'app_reset_password')]
     public function reset(Request $request, UserPasswordHasherInterface $passwordHasher, TranslatorInterface $translator, ?string $token = null): Response
     {
-        if (null === $token) {
-            $token = $this->getTokenFromSession();
-        } else {
-            // Si le token EST dans l'URL (1er clic depuis l'email), 
-            // on le stocke en session pour que le formulaire fonctionne,
-            // MAIS ON NE REDIRIGE PAS.
-            $this->storeTokenInSession($token);
+        // Si la requête est en POST (soumission), le token doit être dans les données du formulaire.
+        if ($request->isMethod('POST')) {
+            /** @var string|null $token */
+            $token = $request->request->get('token');
         }
 
-        // Si, après tout ça, on n'a toujours pas de token, ALORS c'est une erreur.
+        // Si, après avoir vérifié l'URL et le POST, on n'a pas de token, c'est une erreur.
         if (null === $token) {
-            throw $this->createNotFoundException('No reset password token found in the URL or in the session.');
+            throw $this->createNotFoundException('No reset password token found in the URL or form.');
         }
 
         try {
@@ -126,6 +124,7 @@ class ResetPasswordController extends AbstractController
 
         return $this->render('reset_password/reset.html.twig', [
             'resetForm' => $form,
+            'token' => $token, // On passe le token au template
         ]);
     }
 
@@ -143,24 +142,16 @@ class ResetPasswordController extends AbstractController
         try {
             $resetToken = $this->resetPasswordHelper->generateResetToken($user);
         } catch (ResetPasswordExceptionInterface $e) {
-            // If you want to tell the user why a reset email was not sent, uncomment
-            // the lines below and change the redirect to 'app_forgot_password_request'.
-            // Caution: This may reveal if a user is registered or not.
-            //
-            // $this->addFlash('reset_password_error', sprintf(
-            //     '%s - %s',
-            //     $translator->trans(ResetPasswordExceptionInterface::MESSAGE_PROBLEM_HANDLE, [], 'ResetPasswordBundle'),
-            //     $translator->trans($e->getReason(), [], 'ResetPasswordBundle')
-            // ));
-
             return $this->redirectToRoute('app_check_email');
         }
 
         $email = (new TemplatedEmail())
-            ->from(new Address('ne-pas-repondre@espace1500.fr', 'Mail Bot'))
+            // --- C'EST LA MODIFICATION ---
+            ->from(new Address('ne-pas-repondre@espace1500.fr', 'Support Espace 1500')) // Expéditeur
             ->to((string) $user->getEmail())
-            ->subject('Your password reset request')
-            ->htmlTemplate('reset_password/email.html.twig')
+            ->subject('Réinitialisation de votre mot de passe') // Sujet
+            ->htmlTemplate('reset_password/email.html.twig') // Template "Oubli"
+            // --- FIN MODIFICATION ---
             ->context([
                 'resetToken' => $resetToken,
             ])

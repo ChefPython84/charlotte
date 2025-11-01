@@ -1,0 +1,26 @@
+{# templates/reset_password/new_user_email.html.twig #}
+{% extends 'base.html.twig' %}
+
+{# Mettez un block body pour surcharger la base, ou enlevez extends si vous n'avez pas de base pour les emails #}
+{% block body %}
+    <div class="container" style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Bienvenue sur Espace 1500 !</h2>
+        
+        <p>Bonjour {{ user.prenom|default('Utilisateur') }},</p>
+
+        <p>Un administrateur vient de créer un compte pour vous sur notre plateforme.</p>
+        <p>Pour finaliser votre inscription et accéder à votre espace, veuillez définir votre mot de passe en cliquant sur le lien ci-dessous :</p>
+
+        <p style="margin: 25px 0;">
+            {# L'URL est passée depuis le contrôleur #}
+            <a href="{{ url }}" style="background-color: #0d6efd; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px;">
+                Définir mon mot de passe
+            </a>
+        </p>
+
+        <p>Ce lien expirera dans {{ resetToken.expirationMessageKey|trans(resetToken.expirationMessageData, 'ResetPasswordBundle') }}.</p>
+
+        <p>Merci,<br>
+        L'équipe Espace 1500</p>
+    </div>
+{% endblock %}

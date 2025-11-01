@@ -12,29 +12,37 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\EmailField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 
-// --- AJOUTS IMPORTANTS ---
+// --- Imports pour l'envoi d'email ---
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use SymfonyCasts\Bundle\ResetPassword\ResetPasswordHelperInterface;
-// --- FIN DES AJOUTS ---
+
+// --- Imports pour l'Action personnalisée ---
+use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Actions;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
+use EasyCorp\Bundle\EasyAdminBundle\Context\AdminContext;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use EasyCorp\Bundle\EasyAdminBundle\Router\AdminUrlGenerator; // <-- AJOUT POUR CORRIGER LE BUG
 
 class UserCrudController extends AbstractCrudController
 {
-    // 1. Injecter les services dont nous avons besoin
     private ResetPasswordHelperInterface $resetPasswordHelper;
     private MailerInterface $mailer;
-    private EntityManagerInterface $entityManager;
+    private UrlGeneratorInterface $urlGenerator;
+    private AdminUrlGenerator $adminUrlGenerator; // <-- AJOUT POUR CORRIGER LE BUG
 
     public function __construct(
         ResetPasswordHelperInterface $resetPasswordHelper,
         MailerInterface $mailer,
-        EntityManagerInterface $entityManager
-        // Note: Le PasswordHasher n'est plus nécessaire ici
+        UrlGeneratorInterface $urlGenerator,
+        AdminUrlGenerator $adminUrlGenerator // <-- AJOUT POUR CORRIGER LE BUG
     ) {
         $this->resetPasswordHelper = $resetPasswordHelper;
         $this->mailer = $mailer;
-        $this->entityManager = $entityManager;
+        $this->urlGenerator = $urlGenerator;
+        $this->adminUrlGenerator = $adminUrlGenerator; // <-- AJOUT POUR CORRIGER LE BUG
     }
 
     public static function getEntityFqcn(): string
@@ -44,18 +52,14 @@ class UserCrudController extends AbstractCrudController
 
     public function configureFields(string $pageName): iterable
     {
+        // ... (Vos champs restent identiques)
         yield IdField::new('id')->onlyOnIndex();
         yield TextField::new('nom');
         yield TextField::new('prenom');
         yield EmailField::new('email');
-
-        // 2. ON RETIRE LE CHAMP MOT DE PASSE
-        // yield PasswordField::new('mot_de_passe', 'Mot de passe') ...
-
         yield TextField::new('telephone')->onlyOnForms()->hideOnIndex();
 
-        // ... (le reste de vos champs : rôle, etc.) ...
-        
+        yield TextField::new('role', 'Rôle')->onlyOnIndex();
         yield ChoiceField::new('role', 'Rôle')
             ->setChoices([
                 'Client' => User::ROLE_CLIENT,
@@ -72,48 +76,108 @@ class UserCrudController extends AbstractCrudController
         yield TextField::new('commune')->hideOnIndex();
     }
 
-    // 3. On ne hash plus rien, on ENVOIE L'EMAIL
+    public function configureActions(Actions $actions): Actions
+    {
+        $sendResetLink = Action::new('sendResetLink', 'Envoyer lien reset', 'fa fa-key')
+            ->linkToCrudAction('sendResetLink')
+            ->setCssClass('btn btn-outline-warning');
+
+        return $actions
+            ->add(Crud::PAGE_INDEX, $sendResetLink)
+            ->add(Crud::PAGE_DETAIL, $sendResetLink)
+            ->add(Crud::PAGE_EDIT, $sendResetLink); // <-- AJOUT DE VOTRE DEMANDE
+    }
+
+    /**
+     * C'est la méthode appelée par le bouton.
+     */
+    public function sendResetLink(AdminContext $context): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $context->getEntity()->getInstance();
+
+        if (!$user) {
+            $this->addFlash('danger', 'Utilisateur introuvable.');
+            return $this->redirect($context->getReferrer()); // Referrer est sûr ici car on ne peut pas arriver ici sans
+        }
+        
+        if ($user->getMotDePasse() === null) {
+             $this->addFlash('warning', 'Cet utilisateur n\'a pas encore défini son mot de passe initial. L\'e-mail de "Bienvenue" a été renvoyé.');
+             $this->sendWelcomeEmail($user);
+        } else {
+            // 1. Générer le token
+            $resetToken = $this->resetPasswordHelper->generateResetToken($user);
+
+            // 2. Générer l'URL
+            $url = $this->urlGenerator->generate('app_reset_password', [
+                'token' => $resetToken->getToken()
+            ], UrlGeneratorInterface::ABSOLUTE_URL);
+
+            // 3. Envoyer l'email de "Réinitialisation" (template "oubli")
+            $email = (new TemplatedEmail())
+                ->from('ne-pas-repondre@espace1500.fr')
+                ->to($user->getEmail())
+                ->subject('Réinitialisation de votre mot de passe (Demandé par un admin)')
+                ->htmlTemplate('reset_password/email.html.twig') 
+                ->context([
+                    'resetToken' => $resetToken,
+                    'user' => $user,
+                    'url' => $url,
+                ]);
+
+            $this->mailer->send($email);
+
+            // 4. Confirmer à l'admin
+            $this->addFlash('success', 'Email de réinitialisation envoyé à ' . $user->getEmail());
+        }
+        
+        // --- CORRECTION DU BUG ---
+        // On crée une URL de secours (fallback) au cas où le 'referrer' serait null
+        $fallbackUrl = $this->adminUrlGenerator
+            ->setController(self::class)
+            ->setAction(Action::INDEX)
+            ->generateUrl();
+
+        // On redirige vers la page précédente (si elle existe) ou vers le fallback (la liste)
+        return $this->redirect($context->getReferrer() ?? $fallbackUrl);
+        // --- FIN DE LA CORRECTION ---
+    }
+
+
+    // --- (Logique de création) ---
     public function persistEntity(EntityManagerInterface $entityManager, $entityInstance): void
     {
         /** @var User $user */
         $user = $entityInstance;
-
-        // On sauvegarde l'utilisateur (avec mdp = null)
         parent::persistEntity($entityManager, $entityInstance);
 
-        // On génère le token de "création" de mot de passe
-        // Le bundle le stocke en BDD (dans la table reset_password_request)
-        $resetToken = $this->resetPasswordHelper->generateResetToken($user);
-
-        // On crée l'URL que l'utilisateur recevra
-        // 'app_reset_password' est le nom de la route générée par make:reset-password
-        $url = $this->generateUrl('app_reset_password', [
-            'token' => $resetToken->getToken()
-        ], UrlGeneratorInterface::ABSOLUTE_URL);
-
-        // On envoie l'email
-        $email = (new TemplatedEmail())
-            ->from('ne-pas-repondre@votresite.com')
-            ->to($user->getEmail())
-            ->subject('Finalisez la création de votre compte Espace 1500')
-            // Le template a été créé par la commande make:
-            ->htmlTemplate('reset_password/email.html.twig') 
-            ->context([
-                'resetToken' => $resetToken,
-                'user' => $user,
-                'url' => $url, // On passe l'URL au template
-            ]);
-
-        $this->mailer->send($email);
+        $this->sendWelcomeEmail($user);
 
         $this->addFlash('success', 'Utilisateur créé. Un email a été envoyé à ' . $user->getEmail() . ' pour définir son mot de passe.');
     }
-
-    // 4. On supprime la logique de hash de la MISE À JOUR
-    public function updateEntity(EntityManagerInterface $entityManager, $entityInstance): void
+    
+    /**
+     * Fonction privée pour l'email de "Bienvenue"
+     */
+    private function sendWelcomeEmail(User $user): void
     {
-        // On se contente de sauvegarder les changements (ex: changement de rôle)
-        // On ne touche plus au mot de passe ici.
-        parent::updateEntity($entityManager, $entityInstance);
+        $resetToken = $this->resetPasswordHelper->generateResetToken($user);
+
+        $url = $this->urlGenerator->generate('app_reset_password', [
+            'token' => $resetToken->getToken()
+        ], UrlGeneratorInterface::ABSOLUTE_URL);
+
+        $email = (new TemplatedEmail())
+            ->from('ne-pas-repondre@espace1500.fr') 
+            ->to($user->getEmail())
+            ->subject('Bienvenue ! Créez votre mot de passe pour Espace 1500')
+            ->htmlTemplate('reset_password/new_user_email.html.twig') 
+            ->context([
+                'resetToken' => $resetToken,
+                'user' => $user, 
+                'url' => $url, 
+            ]);
+
+        $this->mailer->send($email);
     }
 }
