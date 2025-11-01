@@ -20,6 +20,16 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
+    App\Controller\:
+        resource: '../src/Controller/'
+        tags: ['controller.service_arguments']
+
+        # --- AJOUTEZ CE BLOC ---
+        bind:
+            # Dit à Symfony : "Pour tout argument nommé $stripeSecretKey
+            # dans un contrôleur, utilise la variable d'environnement STRIPE_SECRET_KEY"
+            '$stripeSecretKey': '%env(STRIPE_SECRET_KEY)%'
+        # --- FIN DE L'AJOUT ---
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 

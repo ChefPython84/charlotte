@@ -12,6 +12,9 @@
                 <i class="bi bi-arrow-left"></i> Retour à mon compte
             </a>
 
+            {# Affiche les messages flash (succès, erreur) #}
+            {% include '_partials/_flash_messages.html.twig' %}
+
             <div class="card shadow-sm">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center p-4">
                     <div>
@@ -60,11 +63,9 @@
                                 <th>Au</th>
                                 <td>{{ facture.reservation.dateFin|date('d/m/Y à H:i') }}</td>
                             </tr>
-                            {# Vous pouvez ajouter plus de détails ici si nécessaire #}
                         </tbody>
                     </table>
                     
-                    {# Si vous avez des paiements liés, vous pouvez les lister ici #}
                     {% if facture.paiements|length > 0 %}
                         <h5 class="mt-4 mb-3">Paiements effectués</h5>
                         <ul class="list-group">
@@ -77,14 +78,17 @@
                         </ul>
                     {% endif %}
 
-                    {# Espace pour un bouton de paiement si la facture n'est pas payée #}
+                    {# --- CORRECTION DU BOUTON --- #}
                     {% if facture.statut == 'en attente' %}
                         <div class="text-center mt-4 p-3 bg-light rounded">
                             <p class="mb-2">Votre facture est en attente de paiement.</p>
-                            {# Mettez ici votre lien de paiement (Stripe, etc.) #}
-                            <a href="#" class="btn btn-success btn-lg">Payer maintenant ({{ facture.montant }} €)</a>
+                            {# Le href pointe maintenant vers notre contrôleur de checkout #}
+                            <a href="{{ path('paiement_checkout', {id: facture.id}) }}" class="btn btn-success btn-lg">
+                                Payer maintenant ({{ facture.montant }} €)
+                            </a>
                         </div>
                     {% endif %}
+                    {# --- FIN CORRECTION --- #}
                 </div>
             </div>
         </div>
