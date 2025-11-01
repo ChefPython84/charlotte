@@ -19,6 +19,11 @@ class Notification
     #[ORM\Column(type:"string", length:255)]
     private string $message;
 
+    // --- AJOUT ---
+    #[ORM\Column(type: "string", length: 255, nullable: true)]
+    private ?string $link = null;
+    // --- FIN AJOUT ---
+
     #[ORM\Column(type:"datetime")]
     private \DateTimeInterface $dateEnvoi;
 
@@ -39,4 +44,17 @@ class Notification
     public function setDateEnvoi(\DateTimeInterface $dateEnvoi): self { $this->dateEnvoi = $dateEnvoi; return $this; }
     public function getEstLu(): bool { return $this->estLu; }
     public function setEstLu(bool $estLu): self { $this->estLu = $estLu; return $this; }
+
+    // --- AJOUT ---
+    public function getLink(): ?string
+    {
+        return $this->link;
+    }
+
+    public function setLink(?string $link): self
+    {
+        $this->link = $link;
+        return $this;
+    }
+    // --- FIN AJOUT ---
 }

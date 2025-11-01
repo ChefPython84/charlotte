@@ -21,8 +21,7 @@
                 {% if reservation.statut == 'annulee' %} bg-danger
                 {% elseif reservation.statut == 'contrat_signe' %} bg-success
                 {% elseif reservation.statut == 'contrat_genere' %} bg-primary
-                {% elseif reservation.statut starts with 'attente_validation' %} bg-warning text-dark
-                {% elseif reservation.statut == 'attente_dossier_client' %} bg-info text-dark
+                {% elseif reservation.statut starts with 'attente' %} bg-warning text-dark
                 {% else %} bg-secondary {% endif %}">
                 {{ reservation.statut|replace({'_': ' '})|capitalize }}
             </span>
@@ -36,10 +35,58 @@
 
     <div class="row g-4">
         
-        {# Colonne de gauche : Formulaire ou Message d'état #}
+        {# --- COLONNE DE GAUCHE : LISEUSE PDF ou FORMULAIRE --- #}
         <div class="col-md-7">
-            {# Affiche le formulaire si un formulaire est passé par le contrôleur #}
-            {% if form %}
+
+            {# --- DÉBUT MODIFICATION : LISEUSE PDF --- #}
+            {% if reservation.statut == 'contrat_genere' or reservation.statut == 'contrat_signe' %}
+                
+                <h2 class="h5 mb-3">Contrat de location</h2>
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        {# Le <embed> fait un appel à votre route 'contrat_pdf' et affiche le résultat #}
+                        <embed src="{{ path('contrat_pdf', {id: reservation.id}) }}" 
+                               type="application/pdf" 
+                               width="100%" 
+                               height="600px" />
+                    </div>
+                </div>
+
+                {# Bloc d'action pour 'contrat_genere' (Signer) #}
+                {% if reservation.statut == 'contrat_genere' %}
+                    <div class="alert alert-primary">
+                        <h4 class="alert-heading">Contrat Prêt pour Signature</h4>
+                        <p>Veuillez relire le contrat ci-dessus avant de confirmer la signature.</p>
+                        <hr>
+                        {# Bouton pour Signer (déclenche la transition) #}
+                        {% if workflow_can(reservation, 'client_signe_contrat') %} 
+                            <form action="{{ path('contrat_transition', {id: reservation.id, transitionName: 'client_signe_contrat'}) }}" method="post" class="d-inline-block" onsubmit="return confirm('En cliquant sur OK, vous confirmez avoir lu et accepté les termes du contrat PDF. Cette action est définitive.');">
+                                <input type="hidden" name="_token" value="{{ csrf_token('transition-' ~ reservation.id ~ '-client_signe_contrat') }}">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-pen-fill"></i> J'accepte et je signe le contrat
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                {# Bloc d'action pour 'contrat_signe' (Déjà signé) #}
+                {% if reservation.statut == 'contrat_signe' %}
+                     <div class="alert alert-success">
+                         <h4 class="alert-heading">Contrat Signé</h4>
+                         <p>Le contrat a été signé électroniquement. Votre réservation est définitivement confirmée.</p>
+                         <hr>
+                         <a href="{{ path('contrat_pdf', {id: reservation.id}) }}" class="btn btn-outline-success">
+                            <i class="bi bi-file-earmark-pdf-fill"></i> Télécharger à nouveau
+                         </a>
+                    </div>
+                {% endif %}
+
+            {# --- FIN MODIFICATION : LISEUSE PDF --- #}
+
+
+            {# Affiche le formulaire si un formulaire est passé (états précédents) #}
+            {% elseif form %}
                 
                 <h2 class="h5 mb-3">
                     {% if reservation.statut == 'attente_dossier_client' %}
@@ -53,74 +100,43 @@
                     {% endif %}
                 </h2>
 
-                {{ form_start(form, {'attr': {'enctype': 'multipart/form-data'}}) }}
-                    {{ form_widget(form) }} 
-                    <button type="submit" class="btn btn-primary mt-3">
-                        {% if reservation.statut == 'attente_dossier_client' %}
-                            Soumettre mon dossier
-                        {% else %}
-                            Enregistrer et Valider
-                        {% endif %}
-                    </button>
-                {{ form_end(form) }}
-
-            {# ---- MESSAGES D'ÉTAT (QUAND IL N'Y A PAS DE FORMULAIRE) ---- #}
-            
-            {% elseif reservation.statut == 'en_attente' %}
-                <div class="alert alert-info">Votre demande est en attente de validation par l'administrateur.</div>
-            
-            {% elseif reservation.statut == 'attente_validation_loueur' %}
-                <div class="alert alert-info">Votre dossier a été soumis et est en attente de validation par le loueur/administrateur.</div>
-            
-            {# --- BLOC POUR L'ÉTAT 'contrat_genere' (AVEC BOUTON SIGNER) --- #}
-            {% elseif reservation.statut == 'contrat_genere' %}
-                <div class="alert alert-primary">
-                    <h4 class="alert-heading">Contrat Prêt pour Signature</h4>
-                    <p>Toutes les parties ont validé le dossier. Le contrat PDF est disponible au téléchargement. Veuillez le relire avant de confirmer la signature.</p>
-                    <hr>
-                    <div class="d-flex align-items-center gap-2">
-                        {# 1. Bouton pour Télécharger le PDF #}
-                        <a href="{{ path('contrat_pdf', {id: reservation.id}) }}" class="btn btn-primary">
-                            <i class="bi bi-file-earmark-pdf-fill"></i> Télécharger le Contrat PDF
-                        </a>
-                        
-                        {# 2. Bouton pour Signer (déclenche la transition) #}
-                        {# CORRIGÉ : Syntaxe de la fonction can_transition #}
-                        {% if workflow_can(reservation, 'client_signe_contrat') %} 
-                            <form action="{{ path('contrat_transition', {id: reservation.id, transitionName: 'client_signe_contrat'}) }}" method="post" class="d-inline-block" onsubmit="return confirm('En cliquant sur OK, vous confirmez avoir lu et accepté les termes du contrat PDF. Cette action est définitive.');">
-                                <input type="hidden" name="_token" value="{{ csrf_token('transition-' ~ reservation.id ~ '-client_signe_contrat') }}">
-                                <button type="submit" class="btn btn-success">
-                                    <i class="bi bi-pen-fill"></i> J'accepte et je signe le contrat
-                                </button>
-                            </form>
-                        {% endif %}
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        {{ form_start(form, {'attr': {'enctype': 'multipart/form-data'}}) }}
+                            {{ form_widget(form) }} 
+                            <button type="submit" class="btn btn-primary mt-3">
+                                {% if reservation.statut == 'attente_dossier_client' %}
+                                    Soumettre mon dossier
+                                {% else %}
+                                    Enregistrer et Valider
+                                {% endif %}
+                            </button>
+                        {{ form_end(form) }}
                     </div>
                 </div>
-            
-            {# --- BLOC POUR L'ÉTAT FINAL 'contrat_signe' --- #}
-            {% elseif reservation.statut == 'contrat_signe' %}
-                <div class="alert alert-success">
-                     <h4 class="alert-heading">Contrat Signé</h4>
-                    <p>Le contrat a été signé électroniquement. Votre réservation est définitivement confirmée.</p>
-                     <hr>
-                     <a href="{{ path('contrat_pdf', {id: reservation.id}) }}" class="btn btn-outline-success">
-                        <i class="bi bi-file-earmark-pdf-fill"></i> Re-télécharger le Contrat Signé
-                    </a>
-                </div>
-            
-            {% elseif reservation.statut == 'annulee' %}
-                 <div class="alert alert-danger">Cette réservation a été annulée.</div>
-            
-            {% else %}
-                <p class="text-muted">Aucune action requise de votre part pour le moment.</p>
-            {% endif %}
-        </div>
 
-        {# Colonne de droite : Actions possibles et Infos du dossier #}
+            {# Affiche les autres messages d'état (en attente, annulé...) #}
+            {% else %}
+                {% if reservation.statut == 'en_attente' %}
+                    <div class="alert alert-info">Votre demande est en attente de validation par l'administrateur.</div>
+                
+                {% elseif reservation.statut == 'attente_validation_loueur' %}
+                    <div class="alert alert-info">Votre dossier a été soumis et est en attente de validation par le loueur/administrateur.</div>
+                
+                {% elseif reservation.statut == 'annulee' %}
+                    <div class="alert alert-danger">Cette réservation a été annulée.</div>
+                
+                {% else %}
+                    <p class="text-muted">Aucune action requise de votre part pour le moment.</p>
+                {% endif %}
+            {% endif %}
+        </div> {# Fin col-md-7 #}
+
+        {# --- COLONNE DE DROITE : Actions et Infos --- #}
         <div class="col-md-5">
             
             {# Section pour les actions simples (boutons de validation) #}
-            {% if not form %}
+            {% if not form and (reservation.statut != 'contrat_genere' and reservation.statut != 'contrat_signe') %}
                 <div class="card shadow-sm mb-4">
                     <div class="card-header">
                         Actions Administratives
@@ -140,7 +156,6 @@
                                                 <i class="bi bi-x-circle"></i> {{ transition.name|replace({'_': ' '})|capitalize }}
                                             </button>
                                         {% else %}
-                                            {# Boutons de validation standards (admin, mairie...) #}
                                             <button type="submit" class="btn w-100 btn-outline-success">
                                                 <i class="bi bi-check-circle"></i> {{ transition.name|replace({'_': ' '})|capitalize }}
                                             </button>
@@ -189,7 +204,7 @@
                                     <p class="small fst-italic mb-0">"{{ reservation.dossierContrat.commentairePrestataire|nl2br }}"</p>
                                 {% endif %}
                             {% else %} 
-                                <span class="text-muted fst-italic">En attente</span> 
+                                 <span class="text-muted fst-italic">En attente</span> 
                             {% endif %}
                         </li>
                         <li class="list-group-item">
@@ -209,7 +224,7 @@
                     </ul>
                 </div>
             {% endif %}
-        </div>
+        </div> {# Fin col-md-5 #}
     </div>
 </div>
 {% endblock %}

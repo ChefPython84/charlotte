@@ -9,7 +9,6 @@
 
         {# Colonne de gauche : Menu #}
         <div class="col-md-3">
-            {# On inclut le menu, en lui disant que 'notifications' est actif #}
             {% include 'compte/_menu.html.twig' with { active: 'notifications' } %}
         </div>
 
@@ -19,19 +18,35 @@
             
             <div class="card shadow-sm">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
                             <tr>
                                 <th>Message</th>
                                 <th>Date</th>
                                 <th class="text-center">Statut</th>
-                                <th></th>
+                                <th class="text-end">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for notif in notifications %}
-                                <tr class="{{ notif.estLu ? 'table-secondary' : 'table-light fw-bold' }}">
-                                    <td>{{ notif.message }}</td>
+                                <tr class="{{ notif.estLu ? '' : 'table-light fw-bold' }}">
+                                    
+                                    {# --- MODIFICATION ICI --- #}
+                                    <td>
+                                        {% if notif.link %}
+                                            {# Si un lien existe, on le rend cliquable #}
+                                            <a href="{{ notif.link }}" class="text-decoration-none text-dark">
+                                                {{ notif.message }}
+                                                {# Optionnel: icône 'lien externe' si vous utilisez Bootstrap Icons #}
+                                                {# <i class="bi bi-box-arrow-up-right small ms-1"></i> #}
+                                            </a>
+                                        {% else %}
+                                            {# Sinon, on affiche juste le message #}
+                                            {{ notif.message }}
+                                        {% endif %}
+                                    </td>
+                                    {# --- FIN MODIFICATION --- #}
+                                    
                                     <td>{{ notif.dateEnvoi|date('d/m/Y H:i') }}</td>
                                     <td class="text-center">
                                         {% if notif.estLu %}

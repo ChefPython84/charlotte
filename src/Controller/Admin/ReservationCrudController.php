@@ -14,14 +14,19 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\MoneyField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField; 
 use Symfony\Component\Messenger\MessageBusInterface; 
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface; // <-- AJOUTER
 
 class ReservationCrudController extends AbstractCrudController
 {
     private MessageBusInterface $bus; 
+    private UrlGeneratorInterface $urlGenerator; // <-- AJOUTER
 
-    public function __construct(MessageBusInterface $bus) 
-    {
+    public function __construct(
+        MessageBusInterface $bus, 
+        UrlGeneratorInterface $urlGenerator // <-- AJOUTER
+    ) {
         $this->bus = $bus;
+        $this->urlGenerator = $urlGenerator; // <-- AJOUTER
     }
 
     public static function getEntityFqcn(): string
@@ -31,16 +36,16 @@ class ReservationCrudController extends AbstractCrudController
 
     public function configureFields(string $pageName): iterable
     {
+        // (Cette fonction reste INCHANGÉE)
         yield IdField::new('id')->onlyOnIndex();
         yield AssociationField::new('salle');
         yield AssociationField::new('user')->hideOnIndex();
         yield DateTimeField::new('dateDebut');
         yield DateTimeField::new('dateFin');
 
-        // VÉRIFIEZ CES VALEURS EXACTEMENT
         yield ChoiceField::new('statut')
             ->setChoices([
-                // Libellé affiché => Valeur enregistrée (doit correspondre au workflow.yaml)
+                // Libellé affiché => Valeur enregistrée
                 'En attente (Demande client)' => 'en_attente',
                 'Attente Dossier Client' => 'attente_dossier_client',
                 'Attente Validation Loueur' => 'attente_validation_loueur',
@@ -48,7 +53,7 @@ class ReservationCrudController extends AbstractCrudController
                 'Attente Validation Prestataire' => 'attente_validation_prestataire',
                 'Contrat Généré' => 'contrat_genere',
                 'Contrat Signé' => 'contrat_signe',
-                'Annulée' => 'annulee', // Sans accent, 'ee'
+                'Annulée' => 'annulee', 
             ]);
             
         yield MoneyField::new('prixTotal')->setCurrency('EUR')->hideOnIndex();
@@ -56,68 +61,56 @@ class ReservationCrudController extends AbstractCrudController
         yield AssociationField::new('factures')->onlyOnDetail();
     }
     
-    /**
-     * Cette méthode est appelée par EasyAdmin juste avant de sauvegarder
-     * une entité qui a été MODIFIÉE.
-     */
      public function updateEntity(EntityManagerInterface $entityManager, $entityInstance): void
     {
         /** @var Reservation $reservation */
         $reservation = $entityInstance;
 
-        // 1. Récupère l'état AVANT la modification (pour comparer)
+        // 1. Récupère l'état AVANT la modification
         $originalData = $entityManager->getUnitOfWork()->getOriginalEntityData($reservation);
         $originalStatut = $originalData['statut'] ?? null;
         $newStatut = $reservation->getStatut();
 
-        // 2. Sauvegarde l'entité (le statut est mis à jour en BDD)
+        // 2. Sauvegarde l'entité
         parent::updateEntity($entityManager, $entityInstance);
 
-        // 3. --- DÉBUT LOGIQUE DE NOTIFICATION ---
-        // On vérifie si le statut a réellement changé
+        // 3. Logique de Notification
         if ($originalStatut !== $newStatut) {
             $message = null;
             $userToNotify = $reservation->getUser();
+            
+            // --- MODIFICATION : On génère le lien ---
+            $link = $this->urlGenerator->generate('contrat_tunnel', [
+                'id' => $reservation->getId()
+            ], UrlGeneratorInterface::ABSOLUTE_URL); // Assure un lien complet
 
-            // On crée un message basé sur le NOUVEAU statut
-            // ✍️ Personnalisez ces messages !
+            // ✍️ Personnalisez vos messages ici
             switch ($newStatut) {
                 case 'attente_dossier_client':
-                    $message = "L'administration requiert des documents pour votre réservation '{$reservation->getSalle()->getNom()}'.";
+                    $message = "Action requise pour votre réservation '{$reservation->getSalle()->getNom()}'.";
                     break;
                 case 'contrat_genere':
-                    $message = "Votre contrat pour '{$reservation->getSalle()->getNom()}' est prêt et en attente de votre signature.";
+                    $message = "Votre contrat pour '{$reservation->getSalle()->getNom()}' est prêt à être signé.";
                     break;
                 case 'contrat_signe':
-                    $message = "Le contrat pour '{$reservation->getSalle()->getNom()}' a été signé par l'administration, votre réservation est confirmée.";
+                    $message = "Contrat signé ! Votre réservation '{$reservation->getSalle()->getNom()}' est confirmée.";
                     break;
                 case 'annulee':
-                    $message = "Votre réservation pour '{$reservation->getSalle()->getNom()}' a été annulée par l'administration.";
+                    $message = "Votre réservation '{$reservation->getSalle()->getNom()}' a été annulée.";
                     break;
-                // ... Ajoutez d'autres 'case' pour les statuts pertinents
             }
 
-            // Si on a un message et un utilisateur à notifier...
             if ($message && $userToNotify) {
                 $notification = new Notification();
                 $notification->setUser($userToNotify);
                 $notification->setMessage($message);
+                $notification->setLink($link); // <-- On ajoute le lien
                 
-                // On persiste la NOUVELLE notification
                 $entityManager->persist($notification);
-                
-                // On flush() une seconde fois (la première était dans parent::updateEntity)
-                // pour sauvegarder la notification.
-                $entityManager->flush();
+                $entityManager->flush(); // Flush pour sauvegarder la notif
             }
-            
-            // 4. (Votre ancienne logique d'envoi d'email via Messenger est ci-dessous)
-            // (Vous pouvez la garder ou la supprimer si elle fait doublon)
-            $send = false;
+             $send = false;
             $recipientEmail = null;
-            // ... (votre code existant pour SendContractNotification)
-            // ...
         }
-        // --- FIN LOGIQUE DE NOTIFICATION ---
     }
 }
