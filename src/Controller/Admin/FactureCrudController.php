@@ -20,7 +20,8 @@ class FactureCrudController extends AbstractCrudController
     {
         return [
             IdField::new('id')->onlyOnIndex(),
-            AssociationField::new('reservation')->setRequired(true),
+            AssociationField::new('reservation', 'Réservation')
+                ->autocomplete(),
             MoneyField::new('montant')->setCurrency('EUR'),
             ChoiceField::new('statut')->setChoices([
                 'Payée' => 'payée',

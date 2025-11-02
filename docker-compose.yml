@@ -1,5 +1,4 @@
 # docker-compose.yml
-# SUPPRIMÉ : version: '3.9'
 services:
   php:
     build: .
@@ -13,11 +12,11 @@ services:
       - mailhog
     environment:
       MAILER_DSN: smtp://mailhog:1025
-      # AJOUT : L'URL pour que PHP trouve Gotenberg
-      GOTENBERG_API_URL: 'http://gotenberg:3000' 
+      GOTENBERG_API_URL: 'http://gotenberg:3000'
+    networks: # <-- AJOUT
+      - charlotte-net
 
   mysql:
-    # ... (inchangé)
     image: mysql:8.2
     container_name: charlotte-mysql
     environment:
@@ -29,9 +28,10 @@ services:
       - "3306:3306"
     volumes:
       - data:/var/lib/mysql
+    networks: # <-- AJOUT
+      - charlotte-net
 
   phpmyadmin:
-    # ... (inchangé)
     image: phpmyadmin/phpmyadmin
     container_name: charlotte-phpmyadmin
     environment:
@@ -41,20 +41,48 @@ services:
       - "8081:80"
     depends_on:
       - mysql
+    networks: # <-- AJOUT
+      - charlotte-net
 
   mailhog:
-    # ... (inchangé)
     image: mailhog/mailhog:latest
     container_name: charlotte-mailhog
     ports:
       - "1025:1025" 
-      - "8025:8025" 
+      - "8025:8025"
+    networks: # <-- AJOUT
+      - charlotte-net
 
-  # --- AJOUT DU SERVICE GOTENBERG ---
   gotenberg:
-    image: gotenberg/gotenberg:8 # Utilise une version stable
+    image: gotenberg/gotenberg:8 
     container_name: charlotte-gotenberg
-    # Pas besoin de ports externes, PHP y accède par le nom du service 'gotenberg'
+    networks: # <-- AJOUT
+      - charlotte-net
+
+  # --- AJOUT DU SERVICE STRIPE CLI ---
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: charlotte-ngrok
+    ports:
+      - "4040:4040" # Port pour l'interface web de Ngrok
+    environment:
+      # Lit le token depuis votre fichier .env
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN} 
+    command:
+      # Crée un tunnel HTTP vers le service 'php' sur son port interne '80'
+      - "http"
+      - "php:80"
+      - "--log=stdout" # Affiche les logs dans 'docker-compose logs'
+    networks:
+      - charlotte-net
+    depends_on:
+      - php # S'assure que php est démarré avant
+  # --- FIN DE L'AJOUT ---
 
 volumes:
   data:
+
+# --- AJOUT DU RÉSEAU PARTAGÉ ---
+networks:
+  charlotte-net:
+    driver: bridge

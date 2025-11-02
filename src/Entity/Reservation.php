@@ -79,6 +79,13 @@ class Reservation
         $this->commentaires = new ArrayCollection();
     }
 
+    
+    public function __toString(): string
+    {
+        // Vous pouvez personnaliser cela, mais c'est une option sûre et claire
+        return 'Réservation #' . $this->getId();
+        
+    }
     // ---- getters / setters ----
 
     public function getId(): ?int { return $this->id; }

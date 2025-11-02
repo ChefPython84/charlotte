@@ -3,8 +3,8 @@
 namespace App\Controller;
 
 use App\Entity\Facture;
-use App\Entity\Paiement; // <-- Votre entité Paiement
 use App\Repository\FactureRepository;
+use App\Service\PaiementService; // <-- AJOUTER
 use Doctrine\ORM\EntityManagerInterface;
 use Stripe\Checkout\Session;
 use Stripe\Stripe;
@@ -17,83 +17,65 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 #[Route('/paiement')]
 class PaiementController extends AbstractController
 {
-    private EntityManagerInterface $em;
+    // On n'a plus besoin de l'EntityManager ici, le Service s'en charge
     private string $stripeSecretKey;
 
-    public function __construct(EntityManagerInterface $em, string $stripeSecretKey)
+    public function __construct(string $stripeSecretKey)
     {
-        $this->em = $em;
         $this->stripeSecretKey = $stripeSecretKey;
     }
 
     /**
      * Étape 1: L'utilisateur clique sur "Payer"
-     * On crée une session Stripe et on le redirige.
+     * (Cette méthode ne change pas)
      */
     #[Route('/facture/{id}/checkout', name: 'paiement_checkout')]
     public function checkout(Facture $facture): Response
     {
-        // Sécurité : Vérifier que la facture appartient bien au client connecté
+        // (Toute votre logique de sécurité et de création de session reste identique)
         if ($facture->getReservation()->getUser() !== $this->getUser()) {
             $this->addFlash('danger', 'Accès non autorisé à cette facture.');
             return $this->redirectToRoute('app_compte');
         }
-
-        // Sécurité : Vérifier que la facture est bien "en attente"
         if ($facture->getStatut() !== 'en attente') {
             $this->addFlash('warning', 'Cette facture n\'est pas en attente de paiement.');
             return $this->redirectToRoute('facture_show', ['id' => $facture->getId()]);
         }
-
         Stripe::setApiKey($this->stripeSecretKey);
-
-        // On crée la session de paiement
         $session = Session::create([
             'payment_method_types' => ['card'],
             'line_items' => [[
                 'price_data' => [
                     'currency' => 'eur',
-                    'product_data' => [
-                        'name' => 'Facture #' . $facture->getId() . ' - Réservation ' . $facture->getReservation()->getSalle()->getNom(),
-                    ],
-                    // Stripe travaille en centimes !
+                    'product_data' => [ 'name' => 'Facture #' . $facture->getId() . ' - Réservation ' . $facture->getReservation()->getSalle()->getNom() ],
                     'unit_amount' => $facture->getMontant() * 100,
-                ],
-                'quantity' => 1,
+                ], 'quantity' => 1,
             ]],
             'mode' => 'payment',
-            // On stocke l'ID de la facture pour la retrouver au retour
-            'metadata' => [
-                'facture_id' => $facture->getId()
-            ],
-            // URLs de succès et d'annulation
+            'metadata' => [ 'facture_id' => $facture->getId() ],
             'success_url' => $this->generateUrl('paiement_succes', [], UrlGeneratorInterface::ABSOLUTE_URL) . '?session_id={CHECKOUT_SESSION_ID}',
             'cancel_url' => $this->generateUrl('paiement_annule', ['id' => $facture->getId()], UrlGeneratorInterface::ABSOLUTE_URL),
         ]);
-
-        // On redirige l'utilisateur vers la page de paiement Stripe
         return $this->redirect($session->url, 303);
     }
 
     /**
      * Étape 2: L'utilisateur a payé
-     * Stripe le redirige ici.
+     * Stripe le redirige ici. (MODIFIÉ)
      */
     #[Route('/succes', name: 'paiement_succes')]
-    public function succes(Request $request, FactureRepository $factureRepo): Response
-    {
-        Stripe::setApiKey($this->stripeSecretKey);
+    public function succes(
+        Request $request, 
+        FactureRepository $factureRepo,
+        PaiementService $paiementService // <-- INJECTER LE SERVICE
+    ): Response {
         
+        Stripe::setApiKey($this->stripeSecretKey);
         $sessionId = $request->query->get('session_id');
 
         try {
-            // On récupère la session Stripe pour vérifier le paiement
             $session = Session::retrieve($sessionId);
-
-            // On récupère l'ID de la facture que nous avions stocké
             $factureId = $session->metadata->facture_id;
-
-            /** @var Facture $facture */
             $facture = $factureRepo->find($factureId);
 
             if (!$facture) {
@@ -101,28 +83,17 @@ class PaiementController extends AbstractController
                 return $this->redirectToRoute('app_compte');
             }
 
-            // --- MISE À JOUR DE LA FACTURE ---
-            if ($facture->getStatut() === 'en attente') {
-                
-                // 1. Mettre à jour la facture
-                $facture->setStatut('payée');
-
-                // 2. Créer une entité Paiement pour l'historique
-                $paiement = new Paiement();
-                $paiement->setFacture($facture);
-                $paiement->setMontant($facture->getMontant()); // On reprend le montant de la facture
-                $paiement->setDatePaiement(new \DateTime());
-                $paiement->setMethode('Stripe');
-                $paiement->setStatut('réussi');
-                // $paiement->setTransactionId($session->payment_intent); // Si vous avez un champ pour l'ID de transaction
-
-                $this->em->persist($paiement);
-                $this->em->flush();
-                
+            // --- MISE À JOUR : On utilise le service ---
+            $paymentProcessed = $paiementService->confirmPayment($facture, $session->id);
+            // --- FIN MISE À JOUR ---
+            
+            if ($paymentProcessed) {
                 $this->addFlash('success', 'Paiement effectué avec succès ! Votre facture est réglée.');
+            } else {
+                // Si 'false', c'est que le webhook l'a déjà traitée
+                $this->addFlash('info', 'Votre paiement a bien été reçu.');
             }
 
-            // Rediriger vers la page de la facture (qui affichera "Payée")
             return $this->redirectToRoute('facture_show', ['id' => $facture->getId()]);
 
         } catch (\Exception $e) {
@@ -133,7 +104,7 @@ class PaiementController extends AbstractController
 
     /**
      * Étape 3: L'utilisateur a annulé
-     * Stripe le redirige ici.
+     * (Cette méthode ne change pas)
      */
     #[Route('/annule/{id}', name: 'paiement_annule')]
     public function annule(Facture $facture): Response
