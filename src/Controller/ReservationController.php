@@ -4,13 +4,14 @@ namespace App\Controller;
 
 use App\Entity\Reservation;
 use App\Entity\Salle;
-use App\Repository\DisponibiliteRepository; // AJOUT
+use App\Repository\DisponibiliteRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Doctrine\DBAL\LockMode; // <-- AJOUTÉ
 
 class ReservationController extends AbstractController
 {
@@ -58,7 +59,7 @@ class ReservationController extends AbstractController
         Request $request, 
         Salle $salle, 
         EntityManagerInterface $em,
-        DisponibiliteRepository $dispoRepo // AJOUT
+        DisponibiliteRepository $dispoRepo
     ): Response {
 
         // --- GESTION GET : Afficher la modale ---
@@ -84,7 +85,7 @@ class ReservationController extends AbstractController
             ]);
         }
 
-        // --- GESTION POST : Soumettre la réservation ---
+        // --- GESTION POST : Soumettre la réservation (MODIFIÉ AVEC TRANSACTION ET LOCK) ---
         if ($request->isXmlHttpRequest() && $request->isMethod('POST')) {
             
             $user = $this->getUser();
@@ -98,32 +99,44 @@ class ReservationController extends AbstractController
                 return $this->json(['success'=>false, 'message'=>'ID de créneau manquant'], 400);
             }
 
-            $dispo = $dispoRepo->find($dispo_id);
+            // Démarrer une transaction
+            $em->beginTransaction();
+            try {
+                // 1. Trouver le créneau ET LE VERROUILLER pour écriture
+                $dispo = $dispoRepo->find($dispo_id, LockMode::PESSIMISTIC_WRITE);
 
-            // Double vérification (au cas où qqn l'a réservé entre temps)
-            if (!$dispo || $dispo->getSalle() !== $salle || $dispo->getStatut() !== 'libre') {
-                 return $this->json(['success'=>false, 'message'=>'Ce créneau n\'est plus disponible.'], 400);
+                // 2. RE-VÉRIFIER le statut APRES avoir obtenu le verrou
+                if (!$dispo || $dispo->getSalle() !== $salle || $dispo->getStatut() !== 'libre') {
+                     // L'autre utilisateur a été plus rapide
+                     throw new \Exception('Ce créneau n\'est plus disponible.');
+                }
+
+                // 3. Le créneau est à nous, on le réserve
+                $reservation = new Reservation();
+                $reservation->setSalle($salle)
+                            ->setUser($user)
+                            ->setDateDebut($dispo->getDateDebut()) // Date du créneau
+                            ->setDateFin($dispo->getDateFin())   // Date du créneau
+                            ->setStatut('en_attente')  // Statut initial du workflow
+                            ->setPrixTotal(0); // L'admin définira le prix
+
+                // 4. On met à jour le créneau pour le passer en "réservé"
+                $dispo->setStatut('reserve');
+
+                $em->persist($reservation);
+                // $em->persist($dispo); // Pas nécessaire, $dispo est déjà managé par l'EM
+                
+                $em->flush(); // Appliquer les changements
+                $em->commit(); // Libérer le verrou
+
+                return $this->json(['success'=>true, 'message' => 'Pré-réservation enregistrée.']);
+
+            } catch (\Exception $e) {
+                $em->rollback(); // Annuler la transaction en cas d'erreur
+                return $this->json(['success'=>false, 'message' => $e->getMessage()], 400);
             }
-
-            // 1. On crée la nouvelle réservation
-            $reservation = new Reservation();
-            $reservation->setSalle($salle)
-                        ->setUser($user)
-                        ->setDateDebut($dispo->getDateDebut()) // Date du créneau
-                        ->setDateFin($dispo->getDateFin())   // Date du créneau
-                        ->setStatut('en attente')  // Nouveau statut (sera validé par l'admin)
-                        ->setPrixTotal(0); // L'admin définira le prix
-
-            // 2. On met à jour le créneau pour le passer en "réservé"
-            $dispo->setStatut('reserve');
-
-            $em->persist($reservation);
-            $em->persist($dispo); // On persiste les deux
-            $em->flush();
-
-            // On rafraîchira le calendrier côté client
-            return $this->json(['success'=>true, 'message' => 'Pré-réservation enregistrée.']);
         }
+        // --- FIN DE LA MODIFICATION ---
 
         return $this->redirectToRoute('salle_show', ['id'=>$salle->getId()]);
     }

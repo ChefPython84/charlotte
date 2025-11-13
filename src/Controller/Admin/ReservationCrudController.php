@@ -3,9 +3,7 @@
 namespace App\Controller\Admin;
 
 use App\Entity\Reservation;
-use App\Entity\Notification; // <-- AJOUTER L'ENTITÉ NOTIFICATION
-use App\Message\SendContractNotification; 
-use Doctrine\ORM\EntityManagerInterface; 
+use Doctrine\ORM\EntityManagerInterface; // <-- AJOUT
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
@@ -13,23 +11,24 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\MoneyField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField; 
-use Symfony\Component\Messenger\MessageBusInterface; 
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface; // <-- AJOUTER
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Actions;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
+use EasyCorp\Bundle\EasyAdminBundle\Context\AdminContext; // <-- AJOUT
+use Symfony\Component\HttpFoundation\RedirectResponse; // <-- AJOUT
+use Symfony\Component\Workflow\Registry as WorkflowRegistry;
+
 
 class ReservationCrudController extends AbstractCrudController
 {
-    private MessageBusInterface $bus; 
-    private UrlGeneratorInterface $urlGenerator; // <-- AJOUTER
-
+    // <-- MODIFIÉ : Injection des services requis (Workflow, EntityManager)
+    // MessageBusInterface a été retiré, car les notifications sont gérées par le Subscriber
     public function __construct(
-        MessageBusInterface $bus, 
-        UrlGeneratorInterface $urlGenerator // <-- AJOUTER
+        private UrlGeneratorInterface $urlGenerator,
+        private WorkflowRegistry $workflowRegistry,
+        private EntityManagerInterface $entityManager
     ) {
-        $this->bus = $bus;
-        $this->urlGenerator = $urlGenerator; // <-- AJOUTER
     }
 
     public static function getEntityFqcn(): string
@@ -37,45 +36,142 @@ class ReservationCrudController extends AbstractCrudController
         return Reservation::class;
     }
 
-    // --- AJOUT DE LA CONFIGURATION DES ACTIONS ---
+    // --- MODIFIÉ : Ajout des actions pour piloter le workflow ---
     public function configureActions(Actions $actions): Actions
     {
-        // Crée une action qui redirige vers la page front-end 'contrat_tunnel'
+        // Action existante pour voir le chat
         $goToChat = Action::new('goToChat', 'Voir / Répondre', 'fa fa-comments')
             ->linkToRoute('contrat_tunnel', function (Reservation $reservation) {
                 return ['id' => $reservation->getId()];
             })
-            ->setHtmlAttributes(['target' => '_blank']); // Ouvre dans un nouvel onglet
+            ->setHtmlAttributes(['target' => '_blank']);
+
+        // --- DÉBUT DES NOUVELLES ACTIONS DE WORKFLOW ---
+
+        // Transition : admin_demande_dossier
+        $demanderDossier = Action::new('demanderDossier', 'Demander Dossier', 'fa fa-file-import')
+            ->linkToCrudAction('applyTransition')
+            ->setQueryParameter('transition', 'admin_demande_dossier')
+            ->addCssClass('btn btn-secondary')
+            ->displayIf(fn (Reservation $reservation) => 
+                $this->workflowRegistry->get($reservation)->can($reservation, 'admin_demande_dossier')
+                && $this->isGranted('ROLE_GESTIONNAIRE') // Sécurisé par rôle
+            );
+
+        // Transition : loueur_valide_dossier
+        $validerLoueur = Action::new('validerLoueur', 'Valider (Loueur)', 'fa fa-user-check')
+            ->linkToCrudAction('applyTransition')
+            ->setQueryParameter('transition', 'loueur_valide_dossier')
+            ->addCssClass('btn btn-success')
+            ->displayIf(fn (Reservation $reservation) => 
+                $this->workflowRegistry->get($reservation)->can($reservation, 'loueur_valide_dossier')
+                && $this->isGranted('loueur_valide_dossier', $reservation) // Sécurisé par Voter
+            );
+
+        // Transition : mairie_valide_dossier
+        $validerMairie = Action::new('validerMairie', 'Valider (Mairie)', 'fa fa-university')
+            ->linkToCrudAction('applyTransition')
+            ->setQueryParameter('transition', 'mairie_valide_dossier')
+            ->addCssClass('btn btn-success')
+            ->displayIf(fn (Reservation $reservation) => 
+                $this->workflowRegistry->get($reservation)->can($reservation, 'mairie_valide_dossier')
+                && $this->isGranted('mairie_valide_dossier', $reservation) // Sécurisé par Voter
+            );
+
+        // Transition : prestataire_valide_dossier
+        $validerPrestataire = Action::new('validerPrestataire', 'Valider (Prestataire)', 'fa fa-concierge-bell')
+            ->linkToCrudAction('applyTransition')
+            ->setQueryParameter('transition', 'prestataire_valide_dossier')
+            ->addCssClass('btn btn-success')
+            ->displayIf(fn (Reservation $reservation) => 
+                $this->workflowRegistry->get($reservation)->can($reservation, 'prestataire_valide_dossier')
+                && $this->isGranted('prestataire_valide_dossier', $reservation) // Sécurisé par Voter
+            );
+
+        // Transition : annuler
+        $annulerReservation = Action::new('annuler', 'Annuler', 'fa fa-ban')
+            ->linkToCrudAction('applyTransition')
+            ->setQueryParameter('transition', 'annuler')
+            ->addCssClass('btn btn-danger')
+            ->displayIf(fn (Reservation $reservation) => 
+                $this->workflowRegistry->get($reservation)->can($reservation, 'annuler')
+                && $this->isGranted('ROLE_GESTIONNAIRE')
+            );
+
+        // --- FIN DES NOUVELLES ACTIONS DE WORKFLOW ---
 
         return $actions
-            // Ajoute le bouton sur la page de liste (index)
+            // Ajoute le bouton "Voir / Répondre"
             ->add(Crud::PAGE_INDEX, $goToChat)
-            // Ajoute le bouton sur la page de détail
-            ->add(Crud::PAGE_DETAIL, $goToChat);
+            ->add(Crud::PAGE_DETAIL, $goToChat)
+
+            // Ajoute les boutons de workflow
+            ->add(Crud::PAGE_INDEX, $demanderDossier)
+            ->add(Crud::PAGE_INDEX, $validerLoueur)
+            ->add(Crud::PAGE_INDEX, $validerMairie)
+            ->add(Crud::PAGE_INDEX, $validerPrestataire)
+            ->add(Crud::PAGE_INDEX, $annulerReservation)
+        ;
     }
-    // --- FIN AJOUT ---
+
+    /**
+     * NOUVELLE MÉTHODE : Gère l'application d'une transition de workflow
+     */
+    public function applyTransition(AdminContext $context): RedirectResponse
+    {
+        /** @var Reservation $reservation */
+        $reservation = $context->getEntity()->getInstance();
+        $transition = $context->getRequest()->query->get('transition');
+
+        if (!$transition) {
+            $this->addFlash('danger', 'Transition non spécifiée.');
+            return $this->redirect($context->getReferrer());
+        }
+
+        try {
+            // Sécurisation (via Voter, si configuré)
+            $this->denyAccessUnlessGranted($transition, $reservation);
+
+            $workflow = $this->workflowRegistry->get($reservation);
+
+            if ($workflow->can($reservation, $transition)) {
+                // Applique la transition
+                $workflow->apply($reservation, $transition);
+                
+                // Sauvegarde le changement d'état
+                $this->entityManager->flush(); 
+                
+                $this->addFlash('success', "La transition '$transition' a été appliquée.");
+            } else {
+                $this->addFlash('warning', "La transition '$transition' ne peut pas être appliquée.");
+            }
+
+        } catch (\Exception $e) {
+            $this->addFlash('danger', "Erreur lors de la transition : " . $e->getMessage());
+        }
+
+        return $this->redirect($context->getReferrer());
+    }
+
 
     public function configureFields(string $pageName): iterable
     {
-
-
-        // --- AJOUT DU CHAMP "COMMENTAIRES" ---
-        // Ceci est un "pseudo-champ" qui n'existe que sur la page de détail
-        // Il utilise notre template personnalisé pour afficher le chat
+        // Champ "pseudo-champ" pour le chat (inchangé)
         yield TextField::new('commentaires')
             ->setLabel('Échanges sur le dossier')
-            ->onlyOnDetail() // N'apparaît que sur la page de détail
-            ->setTemplatePath('admin/field/commentaires.html.twig'); // Le template à utiliser
-        // --- FIN AJOUT --
+            ->onlyOnDetail()
+            ->setTemplatePath('admin/field/commentaires.html.twig');
 
-        // (Cette fonction reste INCHANGÉE)
+        // Champs de base (inchangés)
         yield IdField::new('id')->onlyOnIndex();
         yield AssociationField::new('salle');
         yield AssociationField::new('user')->hideOnIndex();
         yield DateTimeField::new('dateDebut');
         yield DateTimeField::new('dateFin');
 
+        // --- MODIFIÉ : Le champ 'statut' n'est plus modifiable, il est en lecture seule ---
         yield ChoiceField::new('statut')
+            ->setLabel('Statut Actuel')
             ->setChoices([
                 // Libellé affiché => Valeur enregistrée
                 'En attente (Demande client)' => 'en_attente',
@@ -86,63 +182,21 @@ class ReservationCrudController extends AbstractCrudController
                 'Contrat Généré' => 'contrat_genere',
                 'Contrat Signé' => 'contrat_signe',
                 'Annulée' => 'annulee', 
-            ]);
+            ])
+            ->setDisabled(true); // <-- Modification clé : rend le champ non-éditable
             
+        // Champs restants (inchangés)
         yield MoneyField::new('prixTotal')->setCurrency('EUR')->hideOnIndex();
         yield TextField::new('typeManifestation')->hideOnIndex();
         yield AssociationField::new('factures')->onlyOnDetail();
     }
     
-     public function updateEntity(EntityManagerInterface $entityManager, $entityInstance): void
-    {
-        /** @var Reservation $reservation */
-        $reservation = $entityInstance;
-
-        // 1. Récupère l'état AVANT la modification
-        $originalData = $entityManager->getUnitOfWork()->getOriginalEntityData($reservation);
-        $originalStatut = $originalData['statut'] ?? null;
-        $newStatut = $reservation->getStatut();
-
-        // 2. Sauvegarde l'entité
-        parent::updateEntity($entityManager, $entityInstance);
-
-        // 3. Logique de Notification
-        if ($originalStatut !== $newStatut) {
-            $message = null;
-            $userToNotify = $reservation->getUser();
-            
-            // --- MODIFICATION : On génère le lien ---
-            $link = $this->urlGenerator->generate('contrat_tunnel', [
-                'id' => $reservation->getId()
-            ], UrlGeneratorInterface::ABSOLUTE_URL); // Assure un lien complet
-
-            // ✍️ Personnalisez vos messages ici
-            switch ($newStatut) {
-                case 'attente_dossier_client':
-                    $message = "Action requise pour votre réservation '{$reservation->getSalle()->getNom()}'.";
-                    break;
-                case 'contrat_genere':
-                    $message = "Votre contrat pour '{$reservation->getSalle()->getNom()}' est prêt à être signé.";
-                    break;
-                case 'contrat_signe':
-                    $message = "Contrat signé ! Votre réservation '{$reservation->getSalle()->getNom()}' est confirmée.";
-                    break;
-                case 'annulee':
-                    $message = "Votre réservation '{$reservation->getSalle()->getNom()}' a été annulée.";
-                    break;
-            }
-
-            if ($message && $userToNotify) {
-                $notification = new Notification();
-                $notification->setUser($userToNotify);
-                $notification->setMessage($message);
-                $notification->setLink($link); // <-- On ajoute le lien
-                
-                $entityManager->persist($notification);
-                $entityManager->flush(); // Flush pour sauvegarder la notif
-            }
-             $send = false;
-            $recipientEmail = null;
-        }
-    }
+     /**
+      * --- SUPPRIMÉ ---
+      * La méthode updateEntity() a été supprimée.
+      * Toute la logique de notification est désormais gérée par
+      * App\EventSubscriber\ReservationWorkflowSubscriber
+      * pour garantir qu'elle ne se déclenche que lors de transitions
+      * de workflow valides, et non lors de changements manuels.
+      */
 }

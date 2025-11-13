@@ -29,18 +29,19 @@ services:
             # Dit à Symfony : "Pour tout argument nommé $stripeSecretKey
             # dans un contrôleur, utilise la variable d'environnement STRIPE_SECRET_KEY"
             '$stripeSecretKey': '%env(STRIPE_SECRET_KEY)%'
-            '$stripeWebhookSecret': '%env(STRIPE_WEBHOOK_SECRET)%'        # --- FIN DE L'AJOUT ---
+            '$stripeWebhookSecret': '%env(STRIPE_WEBHOOK_SECRET)%'
+            '$gotenbergApiUrl': '%env(GOTENBERG_API_URL)%'
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 
-# --- AJOUTEZ CE BLOC À LA FIN ---
-    # Configure explicitement le ContratController
-    App\Controller\ContratController:
-        # Lie l'argument $gotenbergApiUrl du constructeur...
-        bind:
-            # ...à la valeur de la variable d'environnement GOTENBERG_API_URL
-            $gotenbergApiUrl: '%env(GOTENBERG_API_URL)%'
+# # --- AJOUTEZ CE BLOC À LA FIN ---
+#     # Configure explicitement le ContratController
+#     App\Controller\ContratController:
+#         # Lie l'argument $gotenbergApiUrl du constructeur...
+#         bind:
+#             # ...à la valeur de la variable d'environnement GOTENBERG_API_URL
+#             $gotenbergApiUrl: '%env(GOTENBERG_API_URL)%'
         
-        # S'assure qu'il est toujours traité comme un contrôleur
-        tags: ['controller.service_arguments'] 
-    # --- FIN DE L'AJOUT ---
+#         # S'assure qu'il est toujours traité comme un contrôleur
+#         tags: ['controller.service_arguments'] 
+#     # --- FIN DE L'AJOUT ---
