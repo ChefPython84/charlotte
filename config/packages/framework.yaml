@@ -21,3 +21,10 @@ when@test:
         test: true
         session:
             storage_factory_id: session.storage.factory.mock_file
+
+    profiler:
+        collect: true 
+        
+        # --- C'EST ICI QU'IL FAUT AJOUTER LE BLOC ---
+        # On dit au profiler (la barre de débogage) d'ignorer
+        # complètement ces routes pour des raisons de performance.

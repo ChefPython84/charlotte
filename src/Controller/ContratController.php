@@ -10,6 +10,7 @@ use App\Form\CommentaireFormType; // <-- Ajout pour les commentaires
 use App\Form\DossierClientType; 
 use App\Form\DossierMairieType; 
 use App\Form\DossierPrestataireType; 
+use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\Exception\FileException; 
@@ -35,6 +36,7 @@ class ContratController extends AbstractController
     private UrlGeneratorInterface $urlGenerator; 
     private HttpClientInterface $httpClient;
     private string $gotenbergApiUrl;
+    private UserRepository $userRepository;
 
     public function __construct(
         #[Target('reservation_contract.state_machine')] 
@@ -43,7 +45,8 @@ class ContratController extends AbstractController
         SluggerInterface $slugger,
         UrlGeneratorInterface $urlGenerator,
         HttpClientInterface $httpClient,
-        string $gotenbergApiUrl 
+        string $gotenbergApiUrl,
+        UserRepository $userRepository
     ) {
         $this->reservationContractWorkflow = $reservationContractWorkflow;
         $this->em = $em;
@@ -51,6 +54,7 @@ class ContratController extends AbstractController
         $this->urlGenerator = $urlGenerator;
         $this->httpClient = $httpClient;
         $this->gotenbergApiUrl = $gotenbergApiUrl;
+        $this->userRepository = $userRepository;
     }
 
     /**
@@ -76,15 +80,33 @@ class ContratController extends AbstractController
                 $this->em->persist($commentaire);
                 $this->em->flush();
 
+                $link = $this->urlGenerator->generate('contrat_tunnel', [
+                    'id' => $reservation->getId(),
+                    '_fragment' => 'chat-box' // Lien direct vers le chat
+                ]);
+
                 // --- NOTIFICATION POUR L'ADMIN/CLIENT ---
                 // (Cette logique peut être affinée pour notifier l'autre partie)
                 if ($this->isGranted('ROLE_CLIENT')) {
                      $this->addFlash('success', 'Commentaire envoyé à l\'administration.');
-                     // TODO: Logique pour notifier l'admin
-                } else {
+                        $admins = $this->userRepository->findUsersByRoles(['ROLE_ADMIN', 'ROLE_GESTIONNAIRE']);
+                        foreach ($admins as $admin) {
+                            $this->creerNotification(
+                                $admin,
+                                "Nouveau message de {$user->getPrenom()} sur la résa #{$reservation->getId()}",
+                                $link
+                            );
+                        }
+                    } else {
                      $this->addFlash('success', 'Commentaire envoyé au client.');
-                     // TODO: Logique pour notifier le client
+                     $this->creerNotification(
+                        $reservation->getUser(),
+                        "Nouveau message de l'administration sur votre résa #{$reservation->getId()}",
+                        $link
+                    );
                 }
+
+                $this->em->flush();
 
             } else {
                 $this->addFlash('danger', 'Vous devez être connecté pour poster un commentaire.');

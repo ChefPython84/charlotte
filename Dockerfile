@@ -3,6 +3,11 @@ FROM php:8.3-apache
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# --- DÉBUT DE LA MODIFICATION ---
+# 1. On s'assure que le dossier de configuration existe
+RUN echo "memory_limit = 1G" > /usr/local/etc/php/conf.d/zz-memory.ini
+# --- FIN DE LA MODIFICATION ---
+
 # Installer SEULEMENT les paquets PHP nécessaires
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

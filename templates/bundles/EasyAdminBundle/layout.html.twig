@@ -1,0 +1,48 @@
+{# templates/bundles/EasyAdminBundle/layout.html.twig #}
+
+{# 1. On étend le layout de base d'EasyAdmin #}
+{% extends '@!EasyAdmin/layout.html.twig' %}
+
+{# 2. On surcharge le bloc "header_actions" #}
+{% block header_actions %}
+
+    {# --- DÉBUT DE L'AJOUT --- #}
+
+    {# On appelle notre fonction Twig pour l'admin connecté #}
+    {% set admin_notifications = get_unread_notifications() %}
+    {% set admin_notif_count = admin_notifications|length %}
+
+    <div class="dropdown">
+        <a class="nav-link" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" id="admin-notif-bell">
+            <span style="font-size: 1.2rem;">🔔 aide moi</span> {# MAINTENANT: un émoji #}
+            {% if admin_notif_count > 0 %}
+                <span class="badge rounded-pill bg-danger" style="position: absolute; top: 10px; right: -5px; font-size: 0.6em;">
+                    {{ admin_notif_count }}
+                </span>
+            {% endif %}
+        </a>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="admin-notif-bell" style="width: 350px;">
+            {% if admin_notif_count == 0 %}
+                <li><span class="dropdown-item-text text-muted text-center small">Aucune nouvelle notification</span></li>
+            {% else %}
+                <li><h6 class="dropdown-header">Notifications non lues</h6></li>
+                {% for notif in admin_notifications|slice(0, 5) %} {# Affiche les 5 premières #}
+                    <li>
+                        <a class="dropdown-item" href="{{ notif.link ? notif.link : path('app_notifications') }}" style="white-space: normal;">
+                            <small class="text-muted">{{ notif.dateEnvoi|date('d/m H:i') }}</small><br>
+                            {{ notif.message }}
+                        </a>
+                    </li>
+                {% endfor %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-center small" href="{{ path('app_notifications') }}">Voir toutes les notifications</a></li>
+            {% endif %}
+        </ul>
+    </div>
+
+    {# --- FIN DE L'AJOUT --- #}
+
+    {# 3. On affiche les actions par défaut d'EasyAdmin (liens, menu utilisateur) #}
+    {{ parent() }}
+
+{% endblock %}

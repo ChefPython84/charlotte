@@ -27,4 +27,21 @@ class UserRepository extends ServiceEntityRepository
             ->getQuery()
             ->getOneOrNullResult();
     }
+
+    /**
+     * Trouve tous les utilisateurs ayant au moins un des rôles spécifiés.
+     * @param array $roles ex: ['ROLE_ADMIN', 'ROLE_GESTIONNAIRE']
+     * @return User[]
+     */
+    public function findUsersByRoles(array $roles): array
+    {
+        $qb = $this->createQueryBuilder('u');
+        
+        // Crée une condition 'OR' pour chaque rôle
+        $qb->andWhere('u.role IN (:roles)')
+           ->setParameter('roles', $roles);
+
+        return $qb->getQuery()->getResult();
+    }
 }
+
